@@ -15,14 +15,12 @@ return new class extends Migration
             $table->id();
             $table->string('key')->unique();
             $table->text('value');
-            $table->enum('type', ['string', 'integer', 'decimal', 'boolean', 'json', 'array'])->default('string');
-            $table->string('group')->default('general');
+            $table->string('group')->default('general')->comment('general, pos, system, notification');
             $table->text('description')->nullable();
-            $table->boolean('is_public')->default(false);
             $table->timestamps();
 
-            $table->index(['group', 'is_public']);
             $table->index('key');
+            $table->index('group');
         });
     }
 

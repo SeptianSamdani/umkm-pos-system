@@ -11,18 +11,16 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('taxes', function (Blueprint $table) {
+        Schema::create('categories', function (Blueprint $table) {
             $table->id();
             $table->string('name');
-            $table->string('code')->unique();
-            $table->decimal('rate', 5, 2); // e.g., 11.00 for 11%
-            $table->boolean('is_inclusive')->default(false);
-            $table->boolean('is_active')->default(true);
             $table->text('description')->nullable();
+            $table->string('color', 7)->default('#007bff');
+            $table->boolean('is_active')->default(true);
             $table->timestamps();
             $table->softDeletes();
 
-            $table->index(['is_active', 'code']);
+            $table->index(['name', 'is_active']);
         });
     }
 
@@ -31,6 +29,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('taxes');
+        Schema::dropIfExists('categories');
     }
 };

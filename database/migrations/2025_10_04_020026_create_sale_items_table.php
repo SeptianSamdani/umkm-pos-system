@@ -13,15 +13,19 @@ return new class extends Migration
     {
         Schema::create('sale_items', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('sale_id')->constrained()->onDelete('cascade');
-            $table->foreignId('product_id')->constrained()->onDelete('cascade');
-            $table->string('product_name'); // Snapshot of product name
-            $table->string('product_sku')->nullable(); // Snapshot of product SKU
-            $table->integer('quantity');
-            $table->decimal('unit_price', 15, 2);
-            $table->decimal('discount_amount', 15, 2)->default(0);
+            $table->foreignId('sale_id')->constrained()->cascadeOnDelete();
+            $table->foreignId('product_id')->constrained()->cascadeOnDelete();
+            
+            // Snapshot data produk saat transaksi
+            $table->string('product_name');
+            $table->string('product_sku');
+            
+            $table->integer('qty');
+            $table->decimal('price', 15, 2)->comment('Harga jual saat transaksi');
+            $table->decimal('discount', 15, 2)->default(0)->comment('Diskon per item');
             $table->decimal('subtotal', 15, 2);
-            $table->text('notes')->nullable();
+            
+            $table->text('note')->nullable();
             $table->timestamps();
 
             $table->index(['sale_id', 'product_id']);

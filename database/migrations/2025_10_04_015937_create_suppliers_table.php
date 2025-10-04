@@ -11,20 +11,19 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('payment_methods', function (Blueprint $table) {
+        Schema::create('suppliers', function (Blueprint $table) {
             $table->id();
             $table->string('name');
-            $table->string('code')->unique();
-            $table->string('icon')->nullable();
-            $table->boolean('requires_reference')->default(false);
-            $table->decimal('fee_percentage', 5, 2)->default(0);
-            $table->decimal('fee_amount', 10, 2)->default(0);
+            $table->string('contact_person')->nullable();
+            $table->string('phone', 15)->nullable();
+            $table->string('email')->nullable();
+            $table->text('address')->nullable();
             $table->boolean('is_active')->default(true);
-            $table->integer('sort_order')->default(0);
             $table->timestamps();
             $table->softDeletes();
 
-            $table->index(['is_active', 'sort_order']);
+            $table->index(['name', 'is_active']);
+            $table->index('phone');
         });
     }
 
@@ -33,6 +32,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('payment_methods');
+        Schema::dropIfExists('suppliers');
     }
 };

@@ -14,20 +14,23 @@ class SaleItem extends Model
         'product_id',
         'product_name',
         'product_sku',
-        'quantity',
-        'unit_price',
-        'discount_amount',
+        'qty',
+        'price',
+        'discount',
         'subtotal',
-        'notes'
+        'note',
     ];
 
-    protected $casts = [
-        'unit_price' => 'decimal:2',
-        'discount_amount' => 'decimal:2',
-        'subtotal' => 'decimal:2',
-    ];
+    protected function casts(): array
+    {
+        return [
+            'qty' => 'integer',
+            'price' => 'decimal:2',
+            'discount' => 'decimal:2',
+            'subtotal' => 'decimal:2',
+        ];
+    }
 
-    // Relationships
     public function sale()
     {
         return $this->belongsTo(Sale::class);
@@ -36,13 +39,5 @@ class SaleItem extends Model
     public function product()
     {
         return $this->belongsTo(Product::class);
-    }
-
-    // Methods
-    public function calculateSubtotal()
-    {
-        $this->subtotal = ($this->unit_price * $this->quantity) - $this->discount_amount;
-        $this->save();
-        return $this;
     }
 }

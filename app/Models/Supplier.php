@@ -16,14 +16,16 @@ class Supplier extends Model
         'phone',
         'email',
         'address',
-        'is_active'
+        'is_active',
     ];
 
-    protected $casts = [
-        'is_active' => 'boolean',
-    ];
+    protected function casts(): array
+    {
+        return [
+            'is_active' => 'boolean',
+        ];
+    }
 
-    // Relationships
     public function products()
     {
         return $this->hasMany(Product::class);
@@ -32,11 +34,5 @@ class Supplier extends Model
     public function purchases()
     {
         return $this->hasMany(Purchase::class);
-    }
-
-    // Scope
-    public function scopeActive($query)
-    {
-        return $query->where('is_active', true);
     }
 }

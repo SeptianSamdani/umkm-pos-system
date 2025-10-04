@@ -14,28 +14,18 @@ class Category extends Model
         'name',
         'description',
         'color',
-        'is_active'
+        'is_active',
     ];
 
-    protected $casts = [
-        'is_active' => 'boolean',
-    ];
+    protected function casts(): array
+    {
+        return [
+            'is_active' => 'boolean',
+        ];
+    }
 
-    // Relationships
     public function products()
     {
         return $this->hasMany(Product::class);
-    }
-
-    // Scope
-    public function scopeActive($query)
-    {
-        return $query->where('is_active', true);
-    }
-
-    // Accessor
-    public function getProductsCountAttribute()
-    {
-        return $this->products()->count();
     }
 }

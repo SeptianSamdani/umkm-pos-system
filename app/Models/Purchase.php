@@ -4,27 +4,32 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Purchase extends Model
 {
-    use HasFactory;
+    use HasFactory, SoftDeletes;
 
     protected $fillable = [
-        'invoice_number',
+        'invoice',
         'supplier_id',
         'user_id',
         'purchase_date',
-        'total_amount',
+        'total',
         'status',
-        'notes'
+        'note',
+        'received_at',
     ];
 
-    protected $casts = [
-        'purchase_date' => 'date',
-        'total_amount' => 'decimal:2',
-    ];
+    protected function casts(): array
+    {
+        return [
+            'purchase_date' => 'date',
+            'total' => 'decimal:2',
+            'received_at' => 'datetime',
+        ];
+    }
 
-    // Relationships
     public function supplier()
     {
         return $this->belongsTo(Supplier::class);
@@ -35,58 +40,8 @@ class Purchase extends Model
         return $this->belongsTo(User::class);
     }
 
-    public function purchaseItems()
+    public function items()
     {
         return $this->hasMany(PurchaseItem::class);
-    }
-
-    // Scopes
-    public function scopeReceived($query)
-    {
-        return $query->where('status', 'received');
-    }
-
-    public function scopePending($query)
-    {
-        return $query->where('status', 'pending');
-    }
-
-    // Methods
-    public static function generateInvoiceNumber()
-    {
-        $date = now()->format('Ymd');
-        $lastPurchase = self::whereDate('created_at', today())
-                           ->orderBy('id', 'desc')
-                           ->first();
-        
-        $sequence = $lastPurchase ? intval(substr($lastPurchase->invoice_number, -4)) + 1 : 1;
-        
-        return 'PO-' . $date . '-' . str_pad($sequence, 4, '0', STR_PAD_LEFT);
-    }
-
-    public function calculateTotal()
-    {
-        $this->total_amount = $this->purchaseItems()->sum('total_cost');
-        $this->save();
-    }
-
-    public function receive()
-    {
-        if ($this->status !== 'pending') {
-            return false;
-        }
-
-        foreach ($this->purchaseItems as $item) {
-            $item->product->updateStock(
-                $item->quantity,
-                'in',
-                'purchase',
-                $this->id,
-                "Received from purchase {$this->invoice_number}"
-            );
-        }
-
-        $this->update(['status' => 'received']);
-        return true;
     }
 }

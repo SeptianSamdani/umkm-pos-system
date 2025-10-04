@@ -14,21 +14,16 @@ return new class extends Migration
         Schema::create('customers', function (Blueprint $table) {
             $table->id();
             $table->string('name');
-            $table->string('phone')->nullable();
+            $table->string('phone', 15)->nullable()->unique();
             $table->string('email')->nullable();
             $table->text('address')->nullable();
-            $table->date('birth_date')->nullable();
-            $table->enum('gender', ['male', 'female', 'other'])->nullable();
-            $table->decimal('total_spent', 15, 2)->default(0);
-            $table->integer('visit_count')->default(0);
             $table->boolean('is_active')->default(true);
             $table->timestamps();
             $table->softDeletes();
 
-            $table->index(['is_active', 'name']);
+            $table->index(['name', 'is_active']);
             $table->index('phone');
             $table->index('email');
-            $table->index('total_spent');
         });
     }
 

@@ -36,77 +36,12 @@ Route::get('/', function () {
 | Authenticated Routes - Core System
 |--------------------------------------------------------------------------
 */
-// Route::middleware('auth')->group(function () {
+Route::middleware(['auth', 'verified'])->group(function () {
+    // Dashboard Page
+    Route::get('/dashboard', DashboardController::class)->name('dashboard');
+
     
-//     // Dashboard
-//     Route::get('/dashboard', DashboardController::class)->name('dashboard');
-    
-//     // Profile
-//     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
-//     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
-//     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
-    
-//     // Core Resources - Simple CRUD
-//     Route::resource('products', ProductController::class);
-//     Route::resource('categories', CategoryController::class);
-//     Route::resource('customers', CustomerController::class);
-//     Route::resource('suppliers', SupplierController::class);
-//     Route::resource('payment-methods', PaymentMethodController::class);
-//     Route::resource('taxes', TaxController::class);
-//     Route::resource('users', UserController::class);
-//     Route::resource('roles', RoleController::class);
-    
-//     // Sales & POS
-//     Route::resource('sales', SaleController::class)->only(['index', 'create', 'store', 'show']);
-//     Route::post('sales/{sale}/refund', [SaleController::class, 'refund'])->name('sales.refund');
-//     Route::get('sales/{sale}/receipt', [SaleController::class, 'printReceipt'])->name('sales.receipt');
-    
-//     // Purchases
-//     Route::resource('purchases', PurchaseController::class);
-//     Route::post('purchases/{purchase}/receive', [PurchaseController::class, 'receive'])->name('purchases.receive');
-    
-//     // Stock Movements
-//     Route::resource('stock-movements', StockMovementController::class);
-    
-//     /*
-//     |--------------------------------------------------------------------------
-//     | API Routes for AJAX/Frontend
-//     |--------------------------------------------------------------------------
-//     */
-//     Route::prefix('api')->group(function () {
-//         // Sales API
-//         Route::get('sales/summary', [SaleController::class, 'summary']);
-//         Route::get('sales/product-search', [SaleController::class, 'getProduct']);
-//         Route::post('sales/quick-sale', [SaleController::class, 'quickSale']);
-        
-//         // Payment Methods API
-//         Route::get('payment-methods/active', [PaymentMethodController::class, 'getActive']);
-//         Route::post('payment-methods/{paymentMethod}/calculate-fee', [PaymentMethodController::class, 'calculateFee']);
-        
-//         // Tax API
-//         Route::get('taxes/active', [TaxController::class, 'getActive']);
-//         Route::post('taxes/{tax}/calculate', [TaxController::class, 'calculate']);
-        
-//         // Product API
-//         Route::get('products/low-stock', [ProductController::class, 'getLowStock']);
-//         Route::get('products/search', [ProductController::class, 'search']);
-//     });
-    
-//     /*
-//     |--------------------------------------------------------------------------
-//     | Quick Actions (Status Updates)
-//     |--------------------------------------------------------------------------
-//     */
-//     Route::prefix('actions')->group(function () {
-//         // Toggle Status Actions
-//         Route::patch('payment-methods/{paymentMethod}/toggle', [PaymentMethodController::class, 'toggleStatus'])->name('payment-methods.toggle');
-//         Route::patch('taxes/{tax}/toggle', [TaxController::class, 'toggleStatus'])->name('taxes.toggle');
-//         Route::patch('products/{product}/toggle', [ProductController::class, 'toggleStatus'])->name('products.toggle');
-        
-//         // Order Updates
-//         Route::patch('payment-methods/reorder', [PaymentMethodController::class, 'updateOrder'])->name('payment-methods.reorder');
-//         Route::patch('categories/reorder', [CategoryController::class, 'updateOrder'])->name('categories.reorder');
-//     });
-// });
+
+});
 
 require __DIR__.'/auth.php';

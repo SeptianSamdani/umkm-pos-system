@@ -40,8 +40,15 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // Dashboard Page
     Route::get('/dashboard', DashboardController::class)->name('dashboard');
 
-    
+    // Categories
+    Route::middleware('can:view products')->group(function () {
+        Route::resource('categories', CategoryController::class);
+    });
 
+    // Suppliers
+    Route::middleware('can:view suppliers')->group(function () {
+        Route::resource('suppliers', SupplierController::class);
+    });
 });
 
 require __DIR__.'/auth.php';

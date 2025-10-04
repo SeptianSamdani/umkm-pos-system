@@ -3,6 +3,7 @@
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\PosController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\PurchaseController;
 use App\Http\Controllers\SaleController;
@@ -96,6 +97,13 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // Stock Logs
     Route::middleware('can:view stock logs')->group(function () {
         Route::get('stock-logs', [StockLogController::class, 'index'])->name('stock-logs.index');
+    });
+
+    // POS Interface (Cashier)
+    Route::middleware('can:create sales')->group(function () {
+        Route::get('pos', [PosController::class, 'index'])->name('pos.index');
+        Route::post('pos/sale', [PosController::class, 'createSale'])->name('pos.sale');
+        Route::post('pos/customer', [PosController::class, 'quickAddCustomer'])->name('pos.customer');
     });
 });
 

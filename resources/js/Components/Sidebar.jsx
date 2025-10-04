@@ -73,6 +73,13 @@ export default function Sidebar({ user }) {
             icon: Cog6ToothIcon,
             permission: 'manage settings' 
         },
+        { 
+            name: 'POS', 
+            href: '/pos', 
+            icon: ShoppingBagIcon, // or use CashIcon from heroicons
+            permission: 'create sales',
+            highlight: true // Optional: to make it stand out
+        },
     ];
 
     const hasPermission = (permission) => {

@@ -1,11 +1,12 @@
 // ========================================
-// FILE: resources/js/Pages/POS/Index.jsx
+// FILE: resources/js/Pages/POS/Index.jsx (UPDATE)
 // ========================================
 import { useState, useEffect } from 'react';
 import CashierLayout from '@/Layouts/CashierLayout';
 import ProductCard from '@/Components/POS/ProductCard';
 import CartItem from '@/Components/POS/CartItem';
 import Calculator from '@/Components/POS/Calculator';
+import InvoiceModal from '@/Components/POS/InvoiceModal'; // NEW
 import Modal from '@/Components/Modal';
 import { Head, router } from '@inertiajs/react';
 import { 
@@ -20,6 +21,8 @@ export default function POSIndex({ products, categories, customers }) {
     const [selectedCategory, setSelectedCategory] = useState(null);
     const [filteredProducts, setFilteredProducts] = useState([]);
     const [showCalculator, setShowCalculator] = useState(false);
+    const [showInvoice, setShowInvoice] = useState(false); // NEW
+    const [completedSale, setCompletedSale] = useState(null); // NEW
     const [selectedCustomer, setSelectedCustomer] = useState(null);
     const [paymentMethod, setPaymentMethod] = useState('cash');
     const [discount, setDiscount] = useState(0);
@@ -27,8 +30,6 @@ export default function POSIndex({ products, categories, customers }) {
 
     // Initialize products - Backend returns grouped by category.name
     useEffect(() => {
-        // Backend returns: { "Makanan": [...], "Minuman": [...] }
-        // Convert to flat array
         let allProducts = [];
         if (products && typeof products === 'object') {
             allProducts = Object.values(products).flat();
@@ -38,7 +39,6 @@ export default function POSIndex({ products, categories, customers }) {
 
     // Filter products
     useEffect(() => {
-        // Convert grouped products to flat array
         let result = [];
         if (products && typeof products === 'object') {
             result = Object.values(products).flat();
@@ -135,7 +135,7 @@ export default function POSIndex({ products, categories, customers }) {
                 discount: item.discount || 0,
             })),
             discount: discount || 0,
-            tax_rate: 11, // PPN 11%
+            tax_rate: 11,
             cash_received: cashReceived,
         };
 
@@ -149,13 +149,17 @@ export default function POSIndex({ products, categories, customers }) {
 
         axios.post('/pos/sale', saleData)
             .then(response => {
-                const invoice = response.data.data.invoice;
-                const change = cashReceived - total;
-                
-                alert(`Transaction completed!\nInvoice: ${invoice}\nChange: ${formatRupiah(change)}`);
-                
-                clearCart();
+                // Close calculator
                 setShowCalculator(false);
+                
+                // Set completed sale data
+                setCompletedSale(response.data.data);
+                
+                // Show invoice modal
+                setShowInvoice(true);
+                
+                // Clear cart
+                clearCart();
                 
                 // Refresh products data
                 router.reload({ only: ['products'] });
@@ -168,6 +172,177 @@ export default function POSIndex({ products, categories, customers }) {
             .finally(() => {
                 setProcessing(false);
             });
+    };
+
+    const handlePrint = (sale) => {
+        // Print functionality
+        const printWindow = window.open('', '_blank');
+        
+        printWindow.document.write(`
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>Invoice ${sale.invoice}</title>
+                <style>
+                    body {
+                        font-family: 'Courier New', monospace;
+                        font-size: 12px;
+                        margin: 20px;
+                        max-width: 300px;
+                    }
+                    .header {
+                        text-align: center;
+                        border-bottom: 2px dashed #000;
+                        padding-bottom: 10px;
+                        margin-bottom: 10px;
+                    }
+                    .company-name {
+                        font-size: 16px;
+                        font-weight: bold;
+                    }
+                    .section {
+                        margin-bottom: 10px;
+                        border-bottom: 1px dashed #ccc;
+                        padding-bottom: 10px;
+                    }
+                    .row {
+                        display: flex;
+                        justify-content: space-between;
+                        margin-bottom: 5px;
+                    }
+                    .items {
+                        margin: 10px 0;
+                    }
+                    .item {
+                        margin-bottom: 8px;
+                    }
+                    .item-name {
+                        font-weight: bold;
+                    }
+                    .item-detail {
+                        display: flex;
+                        justify-content: space-between;
+                        font-size: 11px;
+                    }
+                    .total-section {
+                        border-top: 2px solid #000;
+                        padding-top: 10px;
+                        margin-top: 10px;
+                    }
+                    .grand-total {
+                        font-size: 14px;
+                        font-weight: bold;
+                    }
+                    .footer {
+                        text-align: center;
+                        margin-top: 20px;
+                        border-top: 2px dashed #000;
+                        padding-top: 10px;
+                    }
+                    @media print {
+                        body { margin: 0; }
+                    }
+                </style>
+            </head>
+            <body>
+                <div class="header">
+                    <div class="company-name">POS SYSTEM</div>
+                    <div>Jakarta, Indonesia</div>
+                    <div>Telp: 021-12345678</div>
+                </div>
+
+                <div class="section">
+                    <div class="row">
+                        <span>Invoice:</span>
+                        <span><strong>${sale.invoice}</strong></span>
+                    </div>
+                    <div class="row">
+                        <span>Date:</span>
+                        <span>${new Date(sale.sale_date).toLocaleString('id-ID')}</span>
+                    </div>
+                    ${sale.customer ? `
+                    <div class="row">
+                        <span>Customer:</span>
+                        <span>${sale.customer.name}</span>
+                    </div>
+                    ` : ''}
+                    <div class="row">
+                        <span>Cashier:</span>
+                        <span>${sale.user?.name || 'N/A'}</span>
+                    </div>
+                </div>
+
+                <div class="items">
+                    ${sale.items?.map(item => `
+                        <div class="item">
+                            <div class="item-name">${item.product_name}</div>
+                            <div class="item-detail">
+                                <span>${formatRupiah(item.price)} x ${item.qty}</span>
+                                <span>${formatRupiah(item.subtotal)}</span>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+
+                <div class="total-section">
+                    <div class="row">
+                        <span>Subtotal:</span>
+                        <span>${formatRupiah(sale.subtotal)}</span>
+                    </div>
+                    ${sale.discount > 0 ? `
+                    <div class="row">
+                        <span>Discount:</span>
+                        <span>-${formatRupiah(sale.discount)}</span>
+                    </div>
+                    ` : ''}
+                    <div class="row">
+                        <span>Tax (11%):</span>
+                        <span>${formatRupiah(sale.tax)}</span>
+                    </div>
+                    <div class="row grand-total">
+                        <span>TOTAL:</span>
+                        <span>${formatRupiah(sale.total)}</span>
+                    </div>
+                    ${sale.payment_method === 'cash' ? `
+                    <div class="row">
+                        <span>Cash:</span>
+                        <span>${formatRupiah(sale.cash_received)}</span>
+                    </div>
+                    <div class="row">
+                        <span>Change:</span>
+                        <span>${formatRupiah(sale.change)}</span>
+                    </div>
+                    ` : `
+                    <div class="row">
+                        <span>Payment:</span>
+                        <span>${sale.payment_method.toUpperCase()}</span>
+                    </div>
+                    `}
+                </div>
+
+                <div class="footer">
+                    <div>Thank you for your purchase!</div>
+                    <div>Please come again</div>
+                </div>
+
+                <script>
+                    window.onload = function() {
+                        window.print();
+                        window.onafterprint = function() {
+                            window.close();
+                        };
+                    }
+                </script>
+            </body>
+            </html>
+        `);
+        
+        printWindow.document.close();
+    };
+
+    const handleCloseInvoice = () => {
+        setShowInvoice(false);
+        setCompletedSale(null);
     };
 
     return (
@@ -382,6 +557,14 @@ export default function POSIndex({ products, categories, customers }) {
                     onClose={() => setShowCalculator(false)}
                 />
             </Modal>
+
+            {/* Invoice Modal */}
+            <InvoiceModal
+                show={showInvoice}
+                onClose={handleCloseInvoice}
+                sale={completedSale}
+                onPrint={handlePrint}
+            />
         </CashierLayout>    
     );
 }

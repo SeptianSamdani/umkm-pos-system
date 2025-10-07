@@ -19,12 +19,18 @@ class PosController extends Controller
      */
     public function index()
     {
-        $products = Product::with('category')
+        // Get all active products with stock
+        $allProducts = Product::with('category', 'supplier')
             ->where('is_active', true)
             ->where('stock', '>', 0)
-            ->get()
-            ->groupBy('category.name');
+            ->get();
 
+        // Group by category name for easier access
+        $products = $allProducts->groupBy(function($product) {
+            return $product->category ? $product->category->name : 'Uncategorized';
+        });
+
+        // Get categories with product count
         $categories = Category::where('is_active', true)
             ->withCount(['products' => function($query) {
                 $query->where('is_active', true)->where('stock', '>', 0);
@@ -32,10 +38,11 @@ class PosController extends Controller
             ->having('products_count', '>', 0)
             ->get();
 
+        // Get recent customers
         $customers = Customer::where('is_active', true)
             ->latest()
-            ->limit(10)
-            ->get();
+            ->limit(50) // Increase limit for better UX
+            ->get(['id', 'name', 'phone', 'email']); // Only needed fields
 
         return Inertia::render('POS/Index', [
             'products' => $products,
@@ -109,7 +116,7 @@ class PosController extends Controller
         ]);
 
         try {
-            $sale = DB::transaction(function () use ($validated) {
+            $sale = DB::transaction(function () use ($validated, $request) {
                 // Calculate totals
                 $subtotal = 0;
                 foreach ($validated['items'] as $item) {
@@ -132,11 +139,11 @@ class PosController extends Controller
                 $number = $lastSale ? intval(substr($lastSale->invoice, -4)) + 1 : 1;
                 $invoice = 'INV-' . now()->format('Ymd') . '-' . str_pad($number, 4, '0', STR_PAD_LEFT);
 
-                // Create sale
+                // ✅ FIXED: Safe access to optional fields
                 $sale = Sale::create([
                     'invoice' => $invoice,
                     'user_id' => auth()->id(),
-                    'customer_id' => $validated['customer_id'],
+                    'customer_id' => $request->input('customer_id'), // ✅ Null-safe
                     'sale_date' => now(),
                     'subtotal' => $subtotal,
                     'tax' => $tax,
@@ -145,9 +152,9 @@ class PosController extends Controller
                     'payment_method' => $validated['payment_method'],
                     'cash_received' => $cashReceived,
                     'change' => $change,
-                    'payment_reference' => $validated['payment_reference'],
+                    'payment_reference' => $request->input('payment_reference'), // ✅ Null-safe
                     'status' => 'completed',
-                    'note' => $validated['note'],
+                    'note' => $request->input('note'), // ✅ Null-safe
                 ]);
 
                 // Create sale items & update stock

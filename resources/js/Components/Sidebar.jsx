@@ -76,9 +76,9 @@ export default function Sidebar({ user }) {
         { 
             name: 'POS', 
             href: '/pos', 
-            icon: ShoppingBagIcon, // or use CashIcon from heroicons
+            icon: ShoppingBagIcon,
             permission: 'create sales',
-            highlight: true // Optional: to make it stand out
+            highlight: true 
         },
     ];
 
@@ -110,11 +110,18 @@ export default function Sidebar({ user }) {
                             className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
                                 isActive(item.href)
                                     ? 'bg-indigo-50 text-indigo-600'
+                                    : item.highlight
+                                    ? 'bg-green-50 text-green-600 hover:bg-green-100'
                                     : 'text-gray-700 hover:bg-gray-50'
                             }`}
                         >
                             <item.icon className="h-5 w-5" />
                             {item.name}
+                            {item.highlight && (
+                                <span className="ml-auto rounded-full bg-green-600 px-2 py-0.5 text-xs font-bold text-white">
+                                    NEW
+                                </span>
+                            )}
                         </Link>
                     );
                 })}

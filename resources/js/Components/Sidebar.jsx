@@ -8,7 +8,8 @@ import {
     DocumentTextIcon,
     ChartBarIcon,
     Cog6ToothIcon,
-    TagIcon
+    TagIcon, 
+    ShieldCheckIcon
 } from '@heroicons/react/24/outline';
 
 export default function Sidebar({ user }) {
@@ -78,13 +79,32 @@ export default function Sidebar({ user }) {
             href: '/pos', 
             icon: ShoppingBagIcon,
             permission: 'create sales',
-            highlight: true 
+        },
+        { 
+            name: 'Users', 
+            href: '/users', 
+            icon: UserGroupIcon,
+            permission: 'manage users' 
+        },
+        { 
+            name: 'Roles', 
+            href: '/roles', 
+            icon: ShieldCheckIcon,
+            permission: 'manage roles',
+            requiredRole: 'owner' // Only owner can see
         },
     ];
 
-    const hasPermission = (permission) => {
-        if (!permission) return true;
-        return user?.permissions?.includes(permission);
+    const hasPermission = (item) => {
+        if (!item) return false;
+        if (!item.permission) return true;
+
+        // Check role if specified
+        if (item.requiredRole && !user?.roles?.includes(item.requiredRole)) {
+            return false;
+        }
+
+        return !!user?.permissions?.includes(item.permission);
     };
 
     const isActive = (href) => {
@@ -102,6 +122,7 @@ export default function Sidebar({ user }) {
             <nav className="space-y-1 p-4">
                 {navigation.map((item) => {
                     if (!hasPermission(item.permission)) return null;
+                    if (!hasPermission(item)) return null;
 
                     return (
                         <Link
@@ -110,8 +131,6 @@ export default function Sidebar({ user }) {
                             className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
                                 isActive(item.href)
                                     ? 'bg-indigo-50 text-indigo-600'
-                                    : item.highlight
-                                    ? 'bg-green-50 text-green-600 hover:bg-green-100'
                                     : 'text-gray-700 hover:bg-gray-50'
                             }`}
                         >

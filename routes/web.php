@@ -6,9 +6,11 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\PosController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\PurchaseController;
+use App\Http\Controllers\RoleController;
 use App\Http\Controllers\SaleController;
 use App\Http\Controllers\StockLogController;
 use App\Http\Controllers\SupplierController;
+use App\Http\Controllers\UserController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -104,6 +106,16 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('pos', [PosController::class, 'index'])->name('pos.index');
         Route::post('pos/sale', [PosController::class, 'createSale'])->name('pos.sale');
         Route::post('pos/customer', [PosController::class, 'quickAddCustomer'])->name('pos.customer');
+    });
+
+    // User Management (only for users with 'manage users' permission)
+    Route::middleware('can:manage users')->group(function () {
+        Route::resource('users', UserController::class);
+    });
+
+    // Role Management (only for owner)
+    Route::middleware('role:owner')->group(function () {
+        Route::resource('roles', RoleController::class);
     });
 });
 

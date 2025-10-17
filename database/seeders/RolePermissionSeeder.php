@@ -39,8 +39,15 @@ class RolePermissionSeeder extends Seeder
             'export reports',
             
             'view stock logs',
+
+            'manage users',      
+            'view users',        
+            'create users',      
+            'edit users',        
+            'delete users',      
             
-            'manage users',
+            'manage roles', // (for owner only)
+            
             'manage settings',
         ];
 
@@ -61,6 +68,7 @@ class RolePermissionSeeder extends Seeder
             'view suppliers', 'create suppliers', 'edit suppliers',
             'view reports', 'export reports',
             'view stock logs',
+            'view users', 'create users', 'edit users', 
         ]);
 
         $cashier = Role::create(['name' => 'cashier']);

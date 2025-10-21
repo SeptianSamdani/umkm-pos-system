@@ -6,7 +6,6 @@ use App\Models\Product;
 use App\Models\Sale;
 use App\Models\Customer;
 use Inertia\Inertia;
-use Illuminate\Support\Facades\DB;
 
 class DashboardController extends Controller
 {

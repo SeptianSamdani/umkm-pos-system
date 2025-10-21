@@ -72,15 +72,15 @@ export default function Sidebar({ user }) {
         ${isCollapsed ? 'w-20' : 'w-64'}`}
     >
       {/* Header */}
-      <div className="flex items-center justify-between border-b border-gray-100 bg-indigo-50 px-4 h-16">
+      <div className="flex items-center justify-between border-b border-gray-100 bg-indigo-600 px-4 h-16">
         {!isCollapsed && (
-          <h1 className="text-lg font-bold text-indigo-700 tracking-wide transition-opacity duration-300">
+          <h1 className="text-lg font-bold text-indigo-50 tracking-wide transition-opacity duration-300">
             UMKM POS
           </h1>
         )}
         <button
           onClick={() => setIsCollapsed(!isCollapsed)}
-          className="p-1 rounded-md hover:bg-indigo-100 text-indigo-600 transition"
+          className="p-1 rounded-md hover:bg-indigo-100 text-indigo-50 transition"
         >
           {isCollapsed ? (
             <Bars3Icon className="h-5 w-5" />

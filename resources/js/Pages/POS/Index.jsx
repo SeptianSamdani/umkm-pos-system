@@ -6,7 +6,7 @@ import CashierLayout from '@/Layouts/CashierLayout';
 import ProductCard from '@/Components/POS/ProductCard';
 import CartItem from '@/Components/POS/CartItem';
 import Calculator from '@/Components/POS/Calculator';
-import InvoiceModal from '@/Components/POS/InvoiceModal'; // NEW
+import InvoiceModal from '@/Components/POS/InvoiceModal'; 
 import Modal from '@/Components/Modal';
 import { Head, router } from '@inertiajs/react';
 import { 
@@ -21,8 +21,8 @@ export default function POSIndex({ products, categories, customers }) {
     const [selectedCategory, setSelectedCategory] = useState(null);
     const [filteredProducts, setFilteredProducts] = useState([]);
     const [showCalculator, setShowCalculator] = useState(false);
-    const [showInvoice, setShowInvoice] = useState(false); // NEW
-    const [completedSale, setCompletedSale] = useState(null); // NEW
+    const [showInvoice, setShowInvoice] = useState(false); 
+    const [completedSale, setCompletedSale] = useState(null); 
     const [selectedCustomer, setSelectedCustomer] = useState(null);
     const [paymentMethod, setPaymentMethod] = useState('cash');
     const [discount, setDiscount] = useState(0);

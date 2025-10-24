@@ -10,39 +10,33 @@ use App\Models\StockLog;
 use App\Models\Category;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
 
 class PosController extends Controller
 {
-    /**
-     * Display POS interface
-     */
     public function index()
     {
-        // Get all active products with stock
         $allProducts = Product::with('category', 'supplier')
             ->where('is_active', true)
             ->where('stock', '>', 0)
             ->get();
 
-        // Group by category name for easier access
-        $products = $allProducts->groupBy(function($product) {
-            return $product->category ? $product->category->name : 'Uncategorized';
-        });
+        $products = $allProducts->groupBy(fn($product) => 
+            $product->category ? $product->category->name : 'Uncategorized'
+        );
 
-        // Get categories with product count
         $categories = Category::where('is_active', true)
-            ->withCount(['products' => function($query) {
-                $query->where('is_active', true)->where('stock', '>', 0);
-            }])
+            ->withCount(['products' => fn($query) => 
+                $query->where('is_active', true)->where('stock', '>', 0)
+            ])
             ->having('products_count', '>', 0)
             ->get();
 
-        // Get recent customers
         $customers = Customer::where('is_active', true)
             ->latest()
-            ->limit(50) // Increase limit for better UX
-            ->get(['id', 'name', 'phone', 'email']); // Only needed fields
+            ->limit(50)
+            ->get(['id', 'name', 'phone', 'email']);
 
         return Inertia::render('POS/Index', [
             'products' => $products,
@@ -51,9 +45,6 @@ class PosController extends Controller
         ]);
     }
 
-    /**
-     * Search products (for barcode scanner / search)
-     */
     public function searchProducts(Request $request)
     {
         $query = Product::with('category')
@@ -75,9 +66,6 @@ class PosController extends Controller
         return response()->json($query->limit(20)->get());
     }
 
-    /**
-     * Get product by barcode (for scanner)
-     */
     public function getByBarcode($barcode)
     {
         $product = Product::with('category')
@@ -95,9 +83,6 @@ class PosController extends Controller
         return response()->json($product);
     }
 
-    /**
-     * Create sale from POS
-     */
     public function createSale(Request $request)
     {
         $validated = $request->validate([
@@ -116,19 +101,18 @@ class PosController extends Controller
         ]);
 
         try {
-            $sale = DB::transaction(function () use ($validated, $request) {
-                // Calculate totals
-                $subtotal = 0;
-                $itemsData = [];
-
-                // Lock products untuk prevent race condition
-                $productIds = collect($validated['items'])->pluck('product_id')->toArray();
+            $sale = DB::transaction(function () use ($validated) {
+                // 1. Lock products dan validate stock
+                $productIds = collect($validated['items'])->pluck('product_id');
                 $products = Product::whereIn('id', $productIds)
-                    ->lockForUpdate() // ← PENTING!
+                    ->lockForUpdate()
                     ->get()
                     ->keyBy('id');
 
-                // Validate stock availability BEFORE any operations
+                // 2. Calculate totals dan validate
+                $subtotal = 0;
+                $itemsData = [];
+
                 foreach ($validated['items'] as $item) {
                     $product = $products->get($item['product_id']);
                     
@@ -155,6 +139,7 @@ class PosController extends Controller
                     ];
                 }
 
+                // 3. Calculate final amounts
                 $discount = $validated['discount'] ?? 0;
                 $taxRate = $validated['tax_rate'] ?? 11;
                 $tax = ($subtotal - $discount) * ($taxRate / 100);
@@ -163,12 +148,18 @@ class PosController extends Controller
                 $cashReceived = $validated['payment_method'] === 'cash' 
                     ? ($validated['cash_received'] ?? $total) 
                     : $total;
+                
+                // Validate sufficient cash
+                if ($validated['payment_method'] === 'cash' && $cashReceived < $total) {
+                    throw new \Exception("Insufficient cash. Required: " . number_format($total, 2));
+                }
+                
                 $change = max(0, $cashReceived - $total);
 
-                // Generate unique invoice dengan retry mechanism
+                // 4. Generate unique invoice
                 $invoice = $this->generateUniqueInvoice();
 
-                // Proper null handling
+                // 5. Create sale
                 $sale = Sale::create([
                     'invoice' => $invoice,
                     'user_id' => auth()->id(),
@@ -186,7 +177,7 @@ class PosController extends Controller
                     'note' => $validated['note'] ?? null,
                 ]);
 
-                // Process items & update stock
+                // 6. Create sale items & update stock
                 foreach ($itemsData as $itemData) {
                     $product = $itemData['product'];
 
@@ -201,12 +192,10 @@ class PosController extends Controller
                         'subtotal' => $itemData['subtotal'],
                     ]);
 
-                    // Update stock
                     $stockBefore = $product->stock;
                     $product->decrement('stock', $itemData['qty']);
                     $product->refresh();
 
-                    // Log stock
                     StockLog::create([
                         'product_id' => $product->id,
                         'user_id' => auth()->id(),
@@ -222,24 +211,37 @@ class PosController extends Controller
                 }
 
                 return $sale;
-            }, 5); // ← 5 attempts for deadlock retry
+            }, 5); // 5 attempts for deadlock retry
 
             return response()->json([
                 'success' => true,
                 'message' => 'Sale created successfully',
-                'data' => $sale->load(['items.product', 'customer']),
+                'data' => $sale->load(['items.product', 'customer', 'user']),
             ]);
-
         } catch (\Illuminate\Database\QueryException $e) {
-            // Handle deadlock
             if ($e->getCode() === '40001') {
                 return response()->json([
                     'success' => false,
                     'message' => 'Transaction conflict. Please try again.',
                 ], 409);
             }
-            throw $e;
+            
+            Log::error('POS Sale Error', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Database error occurred. Please try again.',
+            ], 500);
+            
         } catch (\Exception $e) {
+            Log::error('POS Sale Error', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            
             return response()->json([
                 'success' => false,
                 'message' => $e->getMessage(),
@@ -247,9 +249,6 @@ class PosController extends Controller
         }
     }
 
-    /**
-     * Quick add customer from POS
-     */
     public function quickAddCustomer(Request $request)
     {
         $validated = $request->validate([
@@ -257,45 +256,44 @@ class PosController extends Controller
             'phone' => 'nullable|string|max:15|unique:customers,phone',
         ]);
 
-        $customer = Customer::create($validated);
+        try {
+            $customer = Customer::create($validated);
 
-        return response()->json([
-            'success' => true,
-            'data' => $customer,
-        ]);
+            return response()->json([
+                'success' => true,
+                'data' => $customer,
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to create customer: ' . $e->getMessage(),
+            ], 422);
+        }
     }
 
-    /**
-     * Get today's sales summary (for POS header)
-     */
     public function getTodaySummary()
     {
-        $today = Sale::whereDate('sale_date', today())
+        $summary = Sale::whereDate('sale_date', today())
             ->where('status', 'completed')
-            ->selectRaw('COUNT(*) as transactions, SUM(total) as total_sales')
+            ->selectRaw('COUNT(*) as transactions, COALESCE(SUM(total), 0) as total_sales')
             ->first();
 
         return response()->json([
-            'transactions' => $today->transactions ?? 0,
-            'total_sales' => $today->total_sales ?? 0,
+            'transactions' => $summary->transactions ?? 0,
+            'total_sales' => $summary->total_sales ?? 0,
         ]);
     }
 
-    /**
-     * Print receipt (return receipt data)
-     */
     public function printReceipt(Sale $sale)
     {
         $sale->load(['items.product', 'customer', 'user']);
-        
-        // Update print count
         $sale->increment('print_count');
 
         return response()->json([
             'sale' => $sale,
             'company' => [
                 'name' => config('app.name', 'POS System'),
-                'address' => 'Jakarta, Indonesia', // From settings
+                'address' => 'Jakarta, Indonesia',
                 'phone' => '021-12345678',
             ],
         ]);
@@ -308,15 +306,20 @@ class PosController extends Controller
         }
 
         $date = now()->format('Ymd');
+        
+        // Get last invoice today with lock
         $lastSale = Sale::whereDate('created_at', today())
             ->orderBy('id', 'desc')
             ->lockForUpdate()
             ->first();
         
-        $number = $lastSale ? intval(substr($lastSale->invoice, -4)) + 1 : 1;
+        $number = $lastSale 
+            ? (int) substr($lastSale->invoice, -4) + 1 
+            : 1;
+            
         $invoice = 'INV-' . $date . '-' . str_pad($number, 4, '0', STR_PAD_LEFT);
 
-        // Check if exists (race condition safeguard)
+        // Double check uniqueness
         if (Sale::where('invoice', $invoice)->exists()) {
             return $this->generateUniqueInvoice($attempt + 1);
         }

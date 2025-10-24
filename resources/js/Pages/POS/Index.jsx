@@ -1,7 +1,4 @@
-// ========================================
-// FILE: resources/js/Pages/POS/Index.jsx (UPDATE)
-// ========================================
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import CashierLayout from '@/Layouts/CashierLayout';
 import ProductCard from '@/Components/POS/ProductCard';
 import CartItem from '@/Components/POS/CartItem';
@@ -9,16 +6,10 @@ import Calculator from '@/Components/POS/Calculator';
 import InvoiceModal from '@/Components/POS/InvoiceModal'; 
 import Modal from '@/Components/Modal';
 import { Head, router } from '@inertiajs/react';
-import { 
-    MagnifyingGlassIcon, 
-    ShoppingCartIcon,
-    ArrowLeftOnRectangleIcon
-} from '@heroicons/react/24/outline';
+import { MagnifyingGlassIcon, ShoppingCartIcon } from '@heroicons/react/24/outline';
 import axios from 'axios';
-
 import { printReceipt } from '@/utils/printer';
-import toast from 'react-hot-toast';
-import { showErrorAfterLoading, showLoading, showSuccess, showSuccessAfterLoading } from '@/utils/toast';
+import { showErrorAfterLoading, showLoading, showSuccessAfterLoading } from '@/utils/toast';
 
 export default function POSIndex({ products, categories, customers }) {
     const [cart, setCart] = useState([]);
@@ -28,56 +19,62 @@ export default function POSIndex({ products, categories, customers }) {
     const [showCalculator, setShowCalculator] = useState(false);
     const [showInvoice, setShowInvoice] = useState(false); 
     const [completedSale, setCompletedSale] = useState(null); 
-    const [selectedCustomer, setSelectedCustomer] = useState(null);
+    const [selectedCustomer, setSelectedCustomer] = useState(customers?.[0] || null);
     const [paymentMethod, setPaymentMethod] = useState('cash');
     const [discount, setDiscount] = useState(0);
     const [processing, setProcessing] = useState(false);
 
-    // Initialize products - Backend returns grouped by category.name
-    useEffect(() => {
-        let allProducts = [];
-        if (products && typeof products === 'object') {
-            allProducts = Object.values(products).flat();
-        }
-        setFilteredProducts(allProducts);
+    // Memoize products array
+    const allProducts = useMemo(() => {
+        if (!products || typeof products !== 'object') return [];
+        return Object.values(products).flat();
     }, [products]);
 
-    // Filter products
+    // Initialize products
     useEffect(() => {
-        let result = [];
-        if (products && typeof products === 'object') {
-            result = Object.values(products).flat();
-        }
+        setFilteredProducts(allProducts);
+    }, [allProducts]);
 
-        if (selectedCategory) {
-            result = result.filter(p => p.category_id === selectedCategory);
-        }
+    // Filter products dengan debounce
+    useEffect(() => {
+        const timeoutId = setTimeout(() => {
+            let result = [...allProducts];
 
-        if (searchQuery) {
-            const search = searchQuery.toLowerCase();
-            result = result.filter(p => 
-                p.name?.toLowerCase().includes(search) ||
-                p.sku?.toLowerCase().includes(search) ||
-                p.barcode?.toLowerCase().includes(search)
-            );
-        }
+            if (selectedCategory) {
+                result = result.filter(p => p.category_id === selectedCategory);
+            }
 
-        setFilteredProducts(result);
-    }, [searchQuery, selectedCategory, products]);
+            if (searchQuery) {
+                const search = searchQuery.toLowerCase();
+                result = result.filter(p => 
+                    p.name?.toLowerCase().includes(search) ||
+                    p.sku?.toLowerCase().includes(search) ||
+                    p.barcode?.toLowerCase().includes(search)
+                );
+            }
 
-    const addToCart = (product) => {
-        const existingItem = cart.find(item => item.id === product.id);
+            setFilteredProducts(result);
+        }, 300);
 
-        if (existingItem) {
-            if (existingItem.qty < product.stock) {
-                setCart(cart.map(item =>
+        return () => clearTimeout(timeoutId);
+    }, [searchQuery, selectedCategory, allProducts]);
+
+    const addToCart = useCallback((product) => {
+        setCart(prevCart => {
+            const existingItem = prevCart.find(item => item.id === product.id);
+
+            if (existingItem) {
+                if (existingItem.qty >= product.stock) {
+                    return prevCart;
+                }
+                return prevCart.map(item =>
                     item.id === product.id
                         ? { ...item, qty: item.qty + 1 }
                         : item
-                ));
+                );
             }
-        } else {
-            setCart([...cart, {
+
+            return [...prevCart, {
                 id: product.id,
                 product_id: product.id,
                 name: product.name,
@@ -86,49 +83,56 @@ export default function POSIndex({ products, categories, customers }) {
                 qty: 1,
                 stock: product.stock,
                 discount: 0,
-            }]);
-        }
-    };
+            }];
+        });
+    }, []);
 
-    const updateCartQty = (itemId, newQty) => {
+    const updateCartQty = useCallback((itemId, newQty) => {
         if (newQty <= 0) {
-            removeFromCart(itemId);
+            setCart(prevCart => prevCart.filter(item => item.id !== itemId));
             return;
         }
 
-        const item = cart.find(i => i.id === itemId);
-        if (newQty > item.stock) return;
+        setCart(prevCart => {
+            const item = prevCart.find(i => i.id === itemId);
+            if (!item || newQty > item.stock) return prevCart;
 
-        setCart(cart.map(item =>
-            item.id === itemId ? { ...item, qty: newQty } : item
-        ));
-    };
+            return prevCart.map(item =>
+                item.id === itemId ? { ...item, qty: newQty } : item
+            );
+        });
+    }, []);
 
-    const removeFromCart = (itemId) => {
-        setCart(cart.filter(item => item.id !== itemId));
-    };
+    const removeFromCart = useCallback((itemId) => {
+        setCart(prevCart => prevCart.filter(item => item.id !== itemId));
+    }, []);
 
-    const clearCart = () => {
+    const clearCart = useCallback(() => {
         setCart([]);
-        setSelectedCustomer(null);
+        setSelectedCustomer(customers?.[0] || null);
         setDiscount(0);
         setPaymentMethod('cash');
-    };
+    }, [customers]);
 
-    const formatRupiah = (amount) => {
+    const formatRupiah = useCallback((amount) => {
         return new Intl.NumberFormat('id-ID', {
             style: 'currency',
             currency: 'IDR',
             minimumFractionDigits: 0,
-        }).format(amount);
-    };
+        }).format(amount || 0);
+    }, []);
 
-    // Calculate totals
-    const subtotal = cart.reduce((sum, item) => sum + (item.price * item.qty), 0);
-    const tax = (subtotal - discount) * 0.11; // 11% PPN
-    const total = subtotal - discount + tax;
+    // Memoize calculations
+    const { subtotal, tax, total } = useMemo(() => {
+        const sub = cart.reduce((sum, item) => sum + (item.price * item.qty), 0);
+        const t = (sub - discount) * 0.11;
+        const tot = sub - discount + t;
+        return { subtotal: sub, tax: t, total: tot };
+    }, [cart, discount]);
 
-    const handlePayment = (cashReceived) => {
+    const handlePayment = useCallback((cashReceived) => {
+        if (processing) return;
+        
         setProcessing(true);
 
         const saleData = {
@@ -156,71 +160,43 @@ export default function POSIndex({ products, categories, customers }) {
 
         axios.post('/pos/sale', saleData)
             .then(response => {
-                // ✅ Check response structure
-                if (!response.data || !response.data.data) {
-                    throw new Error('Invalid response from server');
+                if (!response.data?.data) {
+                    throw new Error('Invalid server response');
                 }
 
-                // Close calculator
                 setShowCalculator(false);
-                
-                // Set completed sale data
                 setCompletedSale(response.data.data);
-                
-                // Show invoice modal
                 setShowInvoice(true);
-                
-                // Clear cart
                 clearCart();
-
-                // Toaster
-                toast.dismiss(loadingToast);
-                showSuccessAfterLoading(loadingToast, 'Payment Successful!');
                 
-                // Refresh products data
+                showSuccessAfterLoading(loadingToast, 'Payment Successful!');
                 router.reload({ only: ['products'] });
             })
             .catch(error => {
-                toast.dismiss(loadingToast);
-                
-                // ✅ IMPROVED ERROR HANDLING
                 let errorMessage = 'Transaction failed!';
                 
-                if (error.response) {
-                    // Server responded with error status
-                    console.error('Server Error:', error.response.data);
-                    
-                    // Extract error message
-                    if (error.response.data?.message) {
-                        errorMessage = error.response.data.message;
-                    } else if (error.response.data?.errors) {
-                        // Laravel validation errors
-                        const errors = error.response.data.errors;
-                        errorMessage = Object.values(errors).flat().join(', ');
-                    } else {
-                        errorMessage = `Server Error: ${error.response.status}`;
-                    }
+                if (error.response?.data?.message) {
+                    errorMessage = error.response.data.message;
+                } else if (error.response?.data?.errors) {
+                    const errors = error.response.data.errors;
+                    errorMessage = Object.values(errors).flat().join(', ');
+                } else if (error.response?.status) {
+                    errorMessage = `Server Error: ${error.response.status}`;
                 } else if (error.request) {
-                    // Request made but no response
-                    console.error('Network Error:', error.request);
-                    errorMessage = 'Network error. Please check your connection.';
+                    errorMessage = 'Network error. Check connection.';
                 } else {
-                    // Something else happened
-                    console.error('Error:', error.message);
-                    errorMessage = error.message || 'An unexpected error occurred';
+                    errorMessage = error.message || 'Unexpected error';
                 }
                 
-                // Toaster
                 showErrorAfterLoading(loadingToast, errorMessage);
             })
             .finally(() => {
                 setProcessing(false);
             });
-    };
+    }, [processing, paymentMethod, cart, discount, selectedCustomer, clearCart, customers]);
 
-    const handlePrint = (sale) => {
+    const handlePrint = useCallback((sale) => {
         if (!sale) {
-            console.warn('handlePrint called without sale data');
             alert('No sale data available to print.');
             return;
         }
@@ -232,29 +208,28 @@ export default function POSIndex({ products, categories, customers }) {
                 phone: '021-12345678',
             });
         } catch (error) {
-            alert('Failed to print receipt: ' + (error?.message || error));
+            alert('Failed to print: ' + (error?.message || error));
         }
-    };
+    }, []);
 
-    const handleCloseInvoice = () => {
+    const handleCloseInvoice = useCallback(() => {
         setShowInvoice(false);
         setCompletedSale(null);
-    };
+    }, []);
 
     return (
         <CashierLayout>
             <Head title="POS - Cashier" />
 
             <div className="flex h-full">
-                {/* Left Panel - Products */}
+                {/* Products Panel */}
                 <div className="flex flex-1 flex-col border-r">
-                    {/* Search & Categories */}
                     <div className="border-b bg-white p-4">
                         <div className="relative mb-3">
                             <MagnifyingGlassIcon className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
                             <input
                                 type="text"
-                                placeholder="Search products (name, SKU, barcode)..."
+                                placeholder="Search products..."
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
                                 className="w-full rounded-lg border border-gray-300 py-3 pl-10 pr-4 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
@@ -262,7 +237,6 @@ export default function POSIndex({ products, categories, customers }) {
                             />
                         </div>
 
-                        {/* Category Filters */}
                         <div className="flex gap-2 overflow-x-auto pb-2">
                             <button
                                 onClick={() => setSelectedCategory(null)}
@@ -290,7 +264,6 @@ export default function POSIndex({ products, categories, customers }) {
                         </div>
                     </div>
 
-                    {/* Products Grid */}
                     <div className="flex-1 overflow-y-auto bg-gray-50 p-4">
                         <div className="grid grid-cols-2 gap-4 lg:grid-cols-3 xl:grid-cols-4">
                             {filteredProducts.map((product) => (
@@ -310,9 +283,8 @@ export default function POSIndex({ products, categories, customers }) {
                     </div>
                 </div>
 
-                {/* Right Panel - Cart */}
-                <div className="flex w-[450px] flex-col bg-white">
-                    {/* Cart Header */}
+                {/* Cart Panel */}
+                <div className="flex w-[550px] flex-col bg-white">
                     <div className="border-b p-4">
                         <div className="flex items-center justify-between">
                             <div className="flex items-center gap-2">
@@ -329,7 +301,6 @@ export default function POSIndex({ products, categories, customers }) {
                             )}
                         </div>
 
-                        {/* Customer Selection */}
                         <div className="mt-3">
                             <select
                                 value={selectedCustomer?.id || ''}
@@ -348,7 +319,6 @@ export default function POSIndex({ products, categories, customers }) {
                         </div>
                     </div>
 
-                    {/* Cart Items */}
                     <div className="flex-1 overflow-y-auto p-4">
                         {cart.length === 0 ? (
                             <div className="flex h-full items-center justify-center">
@@ -371,10 +341,8 @@ export default function POSIndex({ products, categories, customers }) {
                         )}
                     </div>
 
-                    {/* Cart Summary */}
                     {cart.length > 0 && (
                         <div className="border-t p-4">
-                            {/* Discount Input */}
                             <div className="mb-4">
                                 <label className="mb-1 block text-sm font-medium text-gray-700">
                                     Discount
@@ -388,7 +356,6 @@ export default function POSIndex({ products, categories, customers }) {
                                 />
                             </div>
 
-                            {/* Payment Method */}
                             <div className="mb-4">
                                 <label className="mb-1 block text-sm font-medium text-gray-700">
                                     Payment Method
@@ -406,7 +373,6 @@ export default function POSIndex({ products, categories, customers }) {
                                 </select>
                             </div>
 
-                            {/* Totals */}
                             <div className="space-y-2 border-t pt-3">
                                 <div className="flex justify-between text-sm">
                                     <span className="text-gray-600">Subtotal</span>
@@ -428,7 +394,6 @@ export default function POSIndex({ products, categories, customers }) {
                                 </div>
                             </div>
 
-                            {/* Checkout Button */}
                             <button
                                 onClick={() => setShowCalculator(true)}
                                 disabled={cart.length === 0 || processing}
@@ -441,7 +406,6 @@ export default function POSIndex({ products, categories, customers }) {
                 </div>
             </div>
 
-            {/* Calculator Modal */}
             <Modal
                 show={showCalculator}
                 onClose={() => !processing && setShowCalculator(false)}
@@ -454,7 +418,6 @@ export default function POSIndex({ products, categories, customers }) {
                 />
             </Modal>
 
-            {/* Invoice Modal */}
             <InvoiceModal
                 show={showInvoice}
                 onClose={handleCloseInvoice}

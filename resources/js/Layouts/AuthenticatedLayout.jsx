@@ -1,14 +1,17 @@
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import Sidebar from '@/Components/Sidebar';
 import Header from '@/Components/Header';
 import { usePage } from '@inertiajs/react';
 import toast, { Toaster } from 'react-hot-toast';
+import { useLocalStorage } from '@/Hooks/useLocalStorage';
 
 export default function AuthenticatedLayout({ children }) {
     const { auth, flash } = usePage().props;
-    const [showFlash, setShowFlash] = useState(false);
+    
+    // Gunakan custom hook
+    const [isSidebarCollapsed, setIsSidebarCollapsed] = useLocalStorage('sidebarCollapsed', false);
 
-    // Add proper cleanup & prevent duplicate toasts
+    // Handle flash messages
     useEffect(() => {
         if (flash?.success) {
             toast.success(flash.success, { id: 'flash-success' });
@@ -43,11 +46,17 @@ export default function AuthenticatedLayout({ children }) {
                 }}
             />
             
-            <Sidebar user={auth.user} />
+            <Sidebar 
+                user={auth.user} 
+                isCollapsed={isSidebarCollapsed}
+                onToggleCollapse={setIsSidebarCollapsed}
+            />
             <Header user={auth.user} />
 
-            {/* Main Content */}
-            <main className="ml-64 pt-16">
+            {/* Main Content - Dynamic margin based on sidebar state */}
+            <main className={`pt-16 transition-all duration-300 ease-in-out ${
+                isSidebarCollapsed ? 'ml-20' : 'ml-64'
+            }`}>
                 <div className="p-6">{children}</div>
             </main>
         </div>

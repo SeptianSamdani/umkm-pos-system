@@ -151,8 +151,13 @@ export default function ProductCreate({ categories, suppliers }) {
                                             <label className="block text-sm font-medium text-gray-700">
                                                 Supplier Name <span className="text-red-500">*</span>
                                             </label>
-                                            <div className="">
-                                                <Select>
+                                            <div className="mt-2">
+                                                <Select
+                                                    value={data.supplier_id}
+                                                    onChange={(e) => setData('supplier_id', e.target.value)}
+                                                    error={errors.supplier_id}
+                                                    className="mt-1"
+                                                >
                                                     <option value="">Select Supplier</option>
                                                     {suppliers.map((supplier) => (
                                                         <option key={supplier.id} value={supplier.id}>

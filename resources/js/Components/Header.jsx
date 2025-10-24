@@ -3,7 +3,8 @@ import { Link } from '@inertiajs/react';
 import { Fragment } from 'react';
 import { 
     UserCircleIcon, 
-    UserIcon 
+    UserIcon, 
+    ArrowRightOnRectangleIcon 
 } from '@heroicons/react/24/outline';
 
 export default function Header({ user }) {

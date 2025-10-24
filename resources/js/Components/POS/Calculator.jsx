@@ -16,7 +16,16 @@ export default function Calculator({ total, onComplete, onClose }) {
     };
 
     const handleNumberClick = (num) => {
-        setReceived(prev => prev + num);
+        setReceived(prev => {
+            // Prevent multiple zeros at start
+            if (prev === '' && num === '0') return '0';
+            if (prev === '0' && num !== '.') return num;
+            
+            // Prevent multiple dots
+            if (num === '.' && prev.includes('.')) return prev;
+            
+            return prev + num;
+        });
     };
 
     const handleClear = () => {

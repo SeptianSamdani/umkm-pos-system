@@ -10,10 +10,10 @@ export default function AuthenticatedLayout({ children }) {
 
     // Add proper cleanup & prevent duplicate toasts
     useEffect(() => {
-        if (flash?.success && !toast.isActive('flash-success')) {
+        if (flash?.success) {
             toast.success(flash.success, { id: 'flash-success' });
         }
-        if (flash?.error && !toast.isActive('flash-error')) {
+        if (flash?.error) {
             toast.error(flash.error, { id: 'flash-error' });
         }
     }, [flash?.success, flash?.error]);

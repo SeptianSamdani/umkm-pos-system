@@ -5,9 +5,11 @@ import { useState, useEffect } from 'react';
 import { Link, usePage, router } from '@inertiajs/react';
 import { 
     HomeIcon, 
-    ClockIcon
+    ClockIcon, 
+    ArrowLeftOnRectangleIcon
 } from '@heroicons/react/24/outline';
 import axios from 'axios';
+import { Toaster } from 'react-hot-toast';
 
 export default function CashierLayout({ children }) {
     const { auth, flash } = usePage().props;
@@ -59,6 +61,41 @@ export default function CashierLayout({ children }) {
 
     return (
         <div className="flex h-screen flex-col bg-gray-50">
+            <Toaster 
+                position="top-right"
+                toastOptions={{
+                    duration: 3000,
+                    style: {
+                        background: '#363636',
+                        color: '#fff',
+                        fontWeight: '500',
+                        zIndex: 9999, 
+                    },
+                    success: {
+                        style: {
+                            background: '#10b981',
+                        },
+                        iconTheme: {
+                            primary: '#fff',
+                            secondary: '#10b981',
+                        },
+                    },
+                    error: {
+                        style: {
+                            background: '#ef4444',
+                        },
+                        iconTheme: {
+                            primary: '#fff',
+                            secondary: '#ef4444',
+                        },
+                    },
+                    loading: {
+                        style: {
+                            background: '#f59e0b',
+                        },
+                    },
+                }}
+            />
             {/* Header */}
             <header className="flex items-center justify-between border-b bg-white px-6 py-4 shadow-sm">
                 <div className="flex items-center gap-4">

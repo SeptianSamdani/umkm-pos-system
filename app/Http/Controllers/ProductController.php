@@ -8,6 +8,7 @@ use App\Models\Supplier;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 class ProductController extends Controller
 {
@@ -63,7 +64,7 @@ class ProductController extends Controller
             'category_id' => 'nullable|exists:categories,id',
             'supplier_id' => 'nullable|exists:suppliers,id',
             'name' => 'required|string|max:255',
-            'sku' => 'required|string|max:255|unique:products,sku',
+            'sku' => 'nullable|string|max:255|unique:products,sku',
             'barcode' => 'nullable|string|max:255|unique:products,barcode',
             'cost' => 'required|numeric|min:0',
             'price' => 'required|numeric|min:0',
@@ -78,6 +79,11 @@ class ProductController extends Controller
         // Handle image upload
         if ($request->hasFile('image')) {
             $validated['image'] = $request->file('image')->store('products', 'public');
+        }
+
+        // Auto-generate SKU jika kosong
+        if (empty($validated['sku'])) {
+            $validated['sku'] = 'PRD-' . strtoupper(Str::random(6));
         }
 
         Product::create($validated);

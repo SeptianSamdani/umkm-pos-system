@@ -12,12 +12,13 @@ import { Head, router } from '@inertiajs/react';
 import { 
     MagnifyingGlassIcon, 
     ShoppingCartIcon,
+    ArrowLeftOnRectangleIcon
 } from '@heroicons/react/24/outline';
 import axios from 'axios';
 
 import { printReceipt } from '@/utils/printer';
 import toast from 'react-hot-toast';
-import { showLoading, showSuccess } from '@/utils/toast';
+import { showErrorAfterLoading, showLoading, showSuccess, showSuccessAfterLoading } from '@/utils/toast';
 
 export default function POSIndex({ products, categories, customers }) {
     const [cart, setCart] = useState([]);
@@ -155,6 +156,11 @@ export default function POSIndex({ products, categories, customers }) {
 
         axios.post('/pos/sale', saleData)
             .then(response => {
+                // ✅ Check response structure
+                if (!response.data || !response.data.data) {
+                    throw new Error('Invalid response from server');
+                }
+
                 // Close calculator
                 setShowCalculator(false);
                 
@@ -167,17 +173,45 @@ export default function POSIndex({ products, categories, customers }) {
                 // Clear cart
                 clearCart();
 
-                toast.dismiss(loadingToast); 
-                showSuccess('Payment Successfull'); 
+                // Toaster
+                toast.dismiss(loadingToast);
+                showSuccessAfterLoading(loadingToast, 'Payment Successful!');
                 
                 // Refresh products data
                 router.reload({ only: ['products'] });
-
             })
             .catch(error => {
-                const errorMessage = error.response?.data?.message || 'Transaction failed!';
-                alert(errorMessage);
-                console.error('Transaction error:', error.response?.data);
+                toast.dismiss(loadingToast);
+                
+                // ✅ IMPROVED ERROR HANDLING
+                let errorMessage = 'Transaction failed!';
+                
+                if (error.response) {
+                    // Server responded with error status
+                    console.error('Server Error:', error.response.data);
+                    
+                    // Extract error message
+                    if (error.response.data?.message) {
+                        errorMessage = error.response.data.message;
+                    } else if (error.response.data?.errors) {
+                        // Laravel validation errors
+                        const errors = error.response.data.errors;
+                        errorMessage = Object.values(errors).flat().join(', ');
+                    } else {
+                        errorMessage = `Server Error: ${error.response.status}`;
+                    }
+                } else if (error.request) {
+                    // Request made but no response
+                    console.error('Network Error:', error.request);
+                    errorMessage = 'Network error. Please check your connection.';
+                } else {
+                    // Something else happened
+                    console.error('Error:', error.message);
+                    errorMessage = error.message || 'An unexpected error occurred';
+                }
+                
+                // Toaster
+                showErrorAfterLoading(loadingToast, errorMessage);
             })
             .finally(() => {
                 setProcessing(false);

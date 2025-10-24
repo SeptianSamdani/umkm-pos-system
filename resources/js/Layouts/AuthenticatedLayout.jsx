@@ -1,40 +1,50 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import Sidebar from '@/Components/Sidebar';
 import Header from '@/Components/Header';
 import { usePage } from '@inertiajs/react';
+import toast, { Toaster } from 'react-hot-toast';
 
 export default function AuthenticatedLayout({ children }) {
     const { auth, flash } = usePage().props;
     const [showFlash, setShowFlash] = useState(false);
 
+    // Add proper cleanup & prevent duplicate toasts
     useEffect(() => {
-        if (flash.success || flash.error) {
-            setShowFlash(true);
-            setTimeout(() => setShowFlash(false), 3000);
+        if (flash?.success && !toast.isActive('flash-success')) {
+            toast.success(flash.success, { id: 'flash-success' });
         }
-    }, [flash]);
+        if (flash?.error && !toast.isActive('flash-error')) {
+            toast.error(flash.error, { id: 'flash-error' });
+        }
+    }, [flash?.success, flash?.error]);
 
     return (
         <div className="min-h-screen bg-gray-50">
+            <Toaster 
+                position="top-right"
+                toastOptions={{
+                    duration: 3000,
+                    style: {
+                        background: '#363636',
+                        color: '#fff',
+                    },
+                    success: {
+                        iconTheme: {
+                            primary: '#10b981',
+                            secondary: '#fff',
+                        },
+                    },
+                    error: {
+                        iconTheme: {
+                            primary: '#ef4444',
+                            secondary: '#fff',
+                        },
+                    },
+                }}
+            />
+            
             <Sidebar user={auth.user} />
             <Header user={auth.user} />
-
-            {/* Flash Messages */}
-            {showFlash && (flash.success || flash.error) && (
-                <div className="fixed right-6 top-20 z-50 w-96">
-                    <div
-                        className={`rounded-lg p-4 shadow-lg ${
-                            flash.success
-                                ? 'bg-green-50 text-green-800'
-                                : 'bg-red-50 text-red-800'
-                        }`}
-                    >
-                        <p className="font-medium">
-                            {flash.success || flash.error}
-                        </p>
-                    </div>
-                </div>
-            )}
 
             {/* Main Content */}
             <main className="ml-64 pt-16">

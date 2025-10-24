@@ -9,6 +9,8 @@ import Input from '@/Components/Input';
 import Select from '@/Components/Select';
 import { Head, Link, useForm } from '@inertiajs/react';
 import { ArrowLeftIcon, PhotoIcon } from '@heroicons/react/24/outline';
+import toast from 'react-hot-toast';
+import { showLoading, showSuccess, showError } from '@/utils/toast';
 
 export default function ProductCreate({ categories, suppliers }) {
     const [previewImage, setPreviewImage] = useState(null);
@@ -43,8 +45,33 @@ export default function ProductCreate({ categories, suppliers }) {
 
     const handleSubmit = (e) => {
         e.preventDefault();
+
+        const loadingId = showLoading('Creating product...'); 
+
         post(route('products.store'), {
             forceFormData: true,
+            onSuccess: (page) => {
+                // dismiss loading
+                toast.dismiss(loadingId); 
+
+                if (!page.props?.flash?.success) {
+                    showSuccess('Product created successfully'); 
+                }
+            }, 
+            onError: (errs) => {
+                toast.dismiss(loadingId);
+
+                // Ambil pesan validasi pertama jika ada, fallback ke pesan umum
+                const firstError = Object.values(errs)[0];
+                const message = firstError
+                    ? (Array.isArray(firstError) ? firstError[0] : firstError)
+                    : 'Failed to create product.';
+                
+                showError(message);
+            }, 
+            onFinish: () => {
+                toast.dismiss(loadingId); 
+            }
         });
     };
 
@@ -112,21 +139,28 @@ export default function ProductCreate({ categories, suppliers }) {
                                             <label className="block text-sm font-medium text-gray-700">
                                                 Product Name <span className="text-red-500">*</span>
                                             </label>
-                                            <Input
-                                                type="text"
-                                                value={data.name}
-                                                onChange={(e) => setData('name', e.target.value)}
-                                                error={errors.name}
-                                                className="mt-1"
-                                            />
-                                            <Select>
-                                                <option value="">Select Supplier</option>
-                                                {suppliers.map((supplier) => (
-                                                    <option key={supplier.id} value={supplier.id}>
-                                                        {supplier.name}
-                                                    </option>
-                                                ))}
-                                            </Select>
+                                            <div className="mb-3">
+                                                <Input
+                                                    type="text"
+                                                    value={data.name}
+                                                    onChange={(e) => setData('name', e.target.value)}
+                                                    error={errors.name}
+                                                    className="mt-1"
+                                                />
+                                            </div>
+                                            <label className="block text-sm font-medium text-gray-700">
+                                                Supplier Name <span className="text-red-500">*</span>
+                                            </label>
+                                            <div className="">
+                                                <Select>
+                                                    <option value="">Select Supplier</option>
+                                                    {suppliers.map((supplier) => (
+                                                        <option key={supplier.id} value={supplier.id}>
+                                                            {supplier.name}
+                                                        </option>
+                                                    ))}
+                                                </Select>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>

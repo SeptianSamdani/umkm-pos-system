@@ -28,6 +28,14 @@ export default function InvoiceModal({ show, onClose, sale, onPrint }) {
         });
     };
 
+    const invokePrint = () => {
+           try {
+            onPrint?.(sale);
+        } catch (error) {
+            alert('Failed to print receipt: ' + error.message);
+        }
+    };
+
     return (
         <Transition appear show={show} as={Fragment}>
             <Dialog as="div" className="relative z-50" onClose={onClose}>
@@ -177,7 +185,7 @@ export default function InvoiceModal({ show, onClose, sale, onPrint }) {
                                         Close
                                     </Button>
                                     <Button
-                                        onClick={() => onPrint(sale)}
+                                        onClick={invokePrint}
                                         className="flex flex-1 items-center justify-center gap-2"
                                     >
                                         <PrinterIcon className="h-5 w-5" />

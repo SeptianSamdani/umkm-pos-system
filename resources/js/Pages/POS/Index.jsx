@@ -15,6 +15,10 @@ import {
 } from '@heroicons/react/24/outline';
 import axios from 'axios';
 
+import { printReceipt } from '@/utils/printer';
+import toast from 'react-hot-toast';
+import { showLoading, showSuccess } from '@/utils/toast';
+
 export default function POSIndex({ products, categories, customers }) {
     const [cart, setCart] = useState([]);
     const [searchQuery, setSearchQuery] = useState('');
@@ -147,6 +151,8 @@ export default function POSIndex({ products, categories, customers }) {
             saleData.payment_reference = `${paymentMethod.toUpperCase()}-${Date.now()}`;
         }
 
+        const loadingToast = showLoading('Processing payment...');
+
         axios.post('/pos/sale', saleData)
             .then(response => {
                 // Close calculator
@@ -160,9 +166,13 @@ export default function POSIndex({ products, categories, customers }) {
                 
                 // Clear cart
                 clearCart();
+
+                toast.dismiss(loadingToast); 
+                showSuccess('Payment Successfull'); 
                 
                 // Refresh products data
                 router.reload({ only: ['products'] });
+
             })
             .catch(error => {
                 const errorMessage = error.response?.data?.message || 'Transaction failed!';
@@ -175,169 +185,21 @@ export default function POSIndex({ products, categories, customers }) {
     };
 
     const handlePrint = (sale) => {
-        // Print functionality
-        const printWindow = window.open('', '_blank');
-        
-        printWindow.document.write(`
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <title>Invoice ${sale.invoice}</title>
-                <style>
-                    body {
-                        font-family: 'Courier New', monospace;
-                        font-size: 12px;
-                        margin: 20px;
-                        max-width: 300px;
-                    }
-                    .header {
-                        text-align: center;
-                        border-bottom: 2px dashed #000;
-                        padding-bottom: 10px;
-                        margin-bottom: 10px;
-                    }
-                    .company-name {
-                        font-size: 16px;
-                        font-weight: bold;
-                    }
-                    .section {
-                        margin-bottom: 10px;
-                        border-bottom: 1px dashed #ccc;
-                        padding-bottom: 10px;
-                    }
-                    .row {
-                        display: flex;
-                        justify-content: space-between;
-                        margin-bottom: 5px;
-                    }
-                    .items {
-                        margin: 10px 0;
-                    }
-                    .item {
-                        margin-bottom: 8px;
-                    }
-                    .item-name {
-                        font-weight: bold;
-                    }
-                    .item-detail {
-                        display: flex;
-                        justify-content: space-between;
-                        font-size: 11px;
-                    }
-                    .total-section {
-                        border-top: 2px solid #000;
-                        padding-top: 10px;
-                        margin-top: 10px;
-                    }
-                    .grand-total {
-                        font-size: 14px;
-                        font-weight: bold;
-                    }
-                    .footer {
-                        text-align: center;
-                        margin-top: 20px;
-                        border-top: 2px dashed #000;
-                        padding-top: 10px;
-                    }
-                    @media print {
-                        body { margin: 0; }
-                    }
-                </style>
-            </head>
-            <body>
-                <div class="header">
-                    <div class="company-name">POS SYSTEM</div>
-                    <div>Jakarta, Indonesia</div>
-                    <div>Telp: 021-12345678</div>
-                </div>
+        if (!sale) {
+            console.warn('handlePrint called without sale data');
+            alert('No sale data available to print.');
+            return;
+        }
 
-                <div class="section">
-                    <div class="row">
-                        <span>Invoice:</span>
-                        <span><strong>${sale.invoice}</strong></span>
-                    </div>
-                    <div class="row">
-                        <span>Date:</span>
-                        <span>${new Date(sale.sale_date).toLocaleString('id-ID')}</span>
-                    </div>
-                    ${sale.customer ? `
-                    <div class="row">
-                        <span>Customer:</span>
-                        <span>${sale.customer.name}</span>
-                    </div>
-                    ` : ''}
-                    <div class="row">
-                        <span>Cashier:</span>
-                        <span>${sale.user?.name || 'N/A'}</span>
-                    </div>
-                </div>
-
-                <div class="items">
-                    ${sale.items?.map(item => `
-                        <div class="item">
-                            <div class="item-name">${item.product_name}</div>
-                            <div class="item-detail">
-                                <span>${formatRupiah(item.price)} x ${item.qty}</span>
-                                <span>${formatRupiah(item.subtotal)}</span>
-                            </div>
-                        </div>
-                    `).join('')}
-                </div>
-
-                <div class="total-section">
-                    <div class="row">
-                        <span>Subtotal:</span>
-                        <span>${formatRupiah(sale.subtotal)}</span>
-                    </div>
-                    ${sale.discount > 0 ? `
-                    <div class="row">
-                        <span>Discount:</span>
-                        <span>-${formatRupiah(sale.discount)}</span>
-                    </div>
-                    ` : ''}
-                    <div class="row">
-                        <span>Tax (11%):</span>
-                        <span>${formatRupiah(sale.tax)}</span>
-                    </div>
-                    <div class="row grand-total">
-                        <span>TOTAL:</span>
-                        <span>${formatRupiah(sale.total)}</span>
-                    </div>
-                    ${sale.payment_method === 'cash' ? `
-                    <div class="row">
-                        <span>Cash:</span>
-                        <span>${formatRupiah(sale.cash_received)}</span>
-                    </div>
-                    <div class="row">
-                        <span>Change:</span>
-                        <span>${formatRupiah(sale.change)}</span>
-                    </div>
-                    ` : `
-                    <div class="row">
-                        <span>Payment:</span>
-                        <span>${sale.payment_method.toUpperCase()}</span>
-                    </div>
-                    `}
-                </div>
-
-                <div class="footer">
-                    <div>Thank you for your purchase!</div>
-                    <div>Please come again</div>
-                </div>
-
-                <script>
-                    window.onload = function() {
-                        window.print();
-                        window.onafterprint = function() {
-                            window.close();
-                        };
-                    }
-                </script>
-            </body>
-            </html>
-        `);
-        
-        printWindow.document.close();
+        try {
+            printReceipt(sale, {
+                name: 'POS SYSTEM',
+                address: 'Jakarta, Indonesia',
+                phone: '021-12345678',
+            });
+        } catch (error) {
+            alert('Failed to print receipt: ' + (error?.message || error));
+        }
     };
 
     const handleCloseInvoice = () => {

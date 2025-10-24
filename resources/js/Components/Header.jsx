@@ -3,19 +3,18 @@ import { Link } from '@inertiajs/react';
 import { Fragment } from 'react';
 import { 
     UserCircleIcon, 
-    ArrowRightOnRectangleIcon,
     UserIcon 
 } from '@heroicons/react/24/outline';
 
 export default function Header({ user }) {
     return (
-        <header className="fixed right-0 top-0 z-30 h-16 border-b border-gray-200 bg-white pl-64">
+        <header className="fixed right-0 top-0 z-30 h-16 border-b border-gray-200 bg-white text-gray-900 pl-64">
             <div className="flex h-full items-center justify-between px-6">
                 <div>
-                    <h2 className="text-lg font-semibold text-gray-800">
+                    <h2 className="text-lg font-semibold text-gray-900">
                         Welcome back, {user.name}!
                     </h2>
-                    <p className="text-sm text-gray-500">
+                    <p className="text-sm text-gray-900">
                         {user.roles?.[0] ? user.roles[0].charAt(0).toUpperCase() + user.roles[0].slice(1) : 'User'}
                     </p>
                 </div>
@@ -23,7 +22,7 @@ export default function Header({ user }) {
                 {/* User Menu */}
                 <Menu as="div" className="relative">
                     <Menu.Button className="flex items-center gap-2 rounded-lg px-3 py-2 hover:bg-gray-50">
-                        <UserCircleIcon className="h-8 w-8 text-gray-600" />
+                        <UserCircleIcon className="h-8 w-8 text-gray-900" />
                         <span className="text-sm font-medium">{user.name}</span>
                     </Menu.Button>
 

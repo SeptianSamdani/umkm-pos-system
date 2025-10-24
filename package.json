@@ -24,9 +24,8 @@
     },
     "dependencies": {
         "@heroicons/react": "^2.2.0",
-        "@tabler/icons-react": "^3.34.1",
         "clsx": "^2.1.1",
-        "lucide-react": "^0.526.0",
+        "react-hot-toast": "^2.6.0",
         "sweetalert2": "^11.22.2"
     }
 }

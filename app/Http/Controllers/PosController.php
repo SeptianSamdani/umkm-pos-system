@@ -103,7 +103,7 @@ class PosController extends Controller
         $validated = $request->validate([
             'customer_id' => 'nullable|exists:customers,id',
             'payment_method' => 'required|in:cash,debit,credit,qris,transfer',
-            'payment_reference' => 'nullable|string',
+            'payment_reference' => 'nullable|string|max:100',
             'items' => 'required|array|min:1',
             'items.*.product_id' => 'required|exists:products,id',
             'items.*.qty' => 'required|integer|min:1',
@@ -112,20 +112,51 @@ class PosController extends Controller
             'discount' => 'nullable|numeric|min:0',
             'tax_rate' => 'nullable|numeric|min:0|max:100',
             'cash_received' => 'required_if:payment_method,cash|numeric|min:0',
-            'note' => 'nullable|string',
+            'note' => 'nullable|string|max:500',
         ]);
 
         try {
             $sale = DB::transaction(function () use ($validated, $request) {
                 // Calculate totals
                 $subtotal = 0;
+                $itemsData = [];
+
+                // Lock products untuk prevent race condition
+                $productIds = collect($validated['items'])->pluck('product_id')->toArray();
+                $products = Product::whereIn('id', $productIds)
+                    ->lockForUpdate() // ← PENTING!
+                    ->get()
+                    ->keyBy('id');
+
+                // Validate stock availability BEFORE any operations
                 foreach ($validated['items'] as $item) {
+                    $product = $products->get($item['product_id']);
+                    
+                    if (!$product) {
+                        throw new \Exception("Product ID {$item['product_id']} not found");
+                    }
+
+                    if ($product->stock < $item['qty']) {
+                        throw new \Exception(
+                            "Insufficient stock for {$product->name}. Available: {$product->stock}, Requested: {$item['qty']}"
+                        );
+                    }
+
                     $itemDiscount = $item['discount'] ?? 0;
-                    $subtotal += ($item['price'] * $item['qty']) - $itemDiscount;
+                    $itemSubtotal = ($item['price'] * $item['qty']) - $itemDiscount;
+                    $subtotal += $itemSubtotal;
+
+                    $itemsData[] = [
+                        'product' => $product,
+                        'qty' => $item['qty'],
+                        'price' => $item['price'],
+                        'discount' => $itemDiscount,
+                        'subtotal' => $itemSubtotal,
+                    ];
                 }
 
                 $discount = $validated['discount'] ?? 0;
-                $taxRate = $validated['tax_rate'] ?? 11; // Default 11% PPN
+                $taxRate = $validated['tax_rate'] ?? 11;
                 $tax = ($subtotal - $discount) * ($taxRate / 100);
                 $total = $subtotal - $discount + $tax;
                 
@@ -134,16 +165,14 @@ class PosController extends Controller
                     : $total;
                 $change = max(0, $cashReceived - $total);
 
-                // Generate invoice
-                $lastSale = Sale::whereDate('created_at', today())->latest()->first();
-                $number = $lastSale ? intval(substr($lastSale->invoice, -4)) + 1 : 1;
-                $invoice = 'INV-' . now()->format('Ymd') . '-' . str_pad($number, 4, '0', STR_PAD_LEFT);
+                // Generate unique invoice dengan retry mechanism
+                $invoice = $this->generateUniqueInvoice();
 
-                // ✅ FIXED: Safe access to optional fields
+                // Proper null handling
                 $sale = Sale::create([
                     'invoice' => $invoice,
                     'user_id' => auth()->id(),
-                    'customer_id' => $request->input('customer_id'), // ✅ Null-safe
+                    'customer_id' => $validated['customer_id'] ?? null,
                     'sale_date' => now(),
                     'subtotal' => $subtotal,
                     'tax' => $tax,
@@ -152,34 +181,29 @@ class PosController extends Controller
                     'payment_method' => $validated['payment_method'],
                     'cash_received' => $cashReceived,
                     'change' => $change,
-                    'payment_reference' => $request->input('payment_reference'), // ✅ Null-safe
+                    'payment_reference' => $validated['payment_reference'] ?? null,
                     'status' => 'completed',
-                    'note' => $request->input('note'), // ✅ Null-safe
+                    'note' => $validated['note'] ?? null,
                 ]);
 
-                // Create sale items & update stock
-                foreach ($validated['items'] as $item) {
-                    $product = Product::findOrFail($item['product_id']);
-
-                    // Check stock availability
-                    if ($product->stock < $item['qty']) {
-                        throw new \Exception("Insufficient stock for {$product->name}. Available: {$product->stock}");
-                    }
+                // Process items & update stock
+                foreach ($itemsData as $itemData) {
+                    $product = $itemData['product'];
 
                     SaleItem::create([
                         'sale_id' => $sale->id,
                         'product_id' => $product->id,
                         'product_name' => $product->name,
                         'product_sku' => $product->sku,
-                        'qty' => $item['qty'],
-                        'price' => $item['price'],
-                        'discount' => $item['discount'] ?? 0,
-                        'subtotal' => ($item['price'] * $item['qty']) - ($item['discount'] ?? 0),
+                        'qty' => $itemData['qty'],
+                        'price' => $itemData['price'],
+                        'discount' => $itemData['discount'],
+                        'subtotal' => $itemData['subtotal'],
                     ]);
 
                     // Update stock
                     $stockBefore = $product->stock;
-                    $product->decrement('stock', $item['qty']);
+                    $product->decrement('stock', $itemData['qty']);
                     $product->refresh();
 
                     // Log stock
@@ -187,7 +211,7 @@ class PosController extends Controller
                         'product_id' => $product->id,
                         'user_id' => auth()->id(),
                         'type' => 'out',
-                        'qty' => -$item['qty'],
+                        'qty' => -$itemData['qty'],
                         'stock_before' => $stockBefore,
                         'stock_after' => $product->stock,
                         'reference_type' => 'sale',
@@ -198,7 +222,7 @@ class PosController extends Controller
                 }
 
                 return $sale;
-            });
+            }, 5); // ← 5 attempts for deadlock retry
 
             return response()->json([
                 'success' => true,
@@ -206,6 +230,15 @@ class PosController extends Controller
                 'data' => $sale->load(['items.product', 'customer']),
             ]);
 
+        } catch (\Illuminate\Database\QueryException $e) {
+            // Handle deadlock
+            if ($e->getCode() === '40001') {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Transaction conflict. Please try again.',
+                ], 409);
+            }
+            throw $e;
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
@@ -266,5 +299,28 @@ class PosController extends Controller
                 'phone' => '021-12345678',
             ],
         ]);
+    }
+
+    private function generateUniqueInvoice(int $attempt = 0): string
+    {
+        if ($attempt > 5) {
+            throw new \Exception('Failed to generate unique invoice after 5 attempts');
+        }
+
+        $date = now()->format('Ymd');
+        $lastSale = Sale::whereDate('created_at', today())
+            ->orderBy('id', 'desc')
+            ->lockForUpdate()
+            ->first();
+        
+        $number = $lastSale ? intval(substr($lastSale->invoice, -4)) + 1 : 1;
+        $invoice = 'INV-' . $date . '-' . str_pad($number, 4, '0', STR_PAD_LEFT);
+
+        // Check if exists (race condition safeguard)
+        if (Sale::where('invoice', $invoice)->exists()) {
+            return $this->generateUniqueInvoice($attempt + 1);
+        }
+
+        return $invoice;
     }
 }

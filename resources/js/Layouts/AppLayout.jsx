@@ -33,7 +33,7 @@ export default function AppLayout({ children, title = "Dashboard" }) {
       </div>
 
       {/* Main content */}
-      <main className="flex-1 lg:ml-64 bg-gray-50 min-h-screen flex flex-col">
+      <main className="flex-1 lg:ml-64 bg-indigo-50 min-h-screen flex flex-col">
         {/* Header */}
         <Header 
           title={title} 

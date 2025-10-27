@@ -1,38 +1,22 @@
 // resources/js/utils/printer.js
 
 export const printReceipt = (sale, companyInfo = {}) => {
-    // Check if printing is supported
-    if (!window.print) {
-        throw new Error('Printing is not supported in this browser');
+    const printWindow = window.open('', '_blank', 'width=300,height=600');
+    
+    if (!printWindow) {
+        throw new Error('Pop-up blocked! Please allow pop-ups for printing.');
     }
-
-    const printContent = generateReceiptHTML(sale, companyInfo);
     
-    // Create iframe for printing (better than popup)
-    const iframe = document.createElement('iframe');
-    iframe.style.display = 'none';
-    document.body.appendChild(iframe);
+    printWindow.document.write(generateReceiptHTML(sale, companyInfo));
+    printWindow.document.close();
     
-    const iframeDoc = iframe.contentWindow.document;
-    iframeDoc.open();
-    iframeDoc.write(printContent);
-    iframeDoc.close();
-    
-    // Wait for content to load
-    iframe.onload = () => {
-        try {
-            iframe.contentWindow.focus();
-            iframe.contentWindow.print();
-            
-            // Clean up after printing
-            setTimeout(() => {
-                document.body.removeChild(iframe);
-            }, 100);
-        } catch (e) {
-            console.error('Print failed:', e);
-            document.body.removeChild(iframe);
-            throw new Error('Failed to print receipt');
-        }
+    // Wait for content load
+    printWindow.onload = () => {
+        printWindow.focus();
+        printWindow.print();
+        
+        // Close after print dialog
+        printWindow.onafterprint = () => printWindow.close();
     };
 };
 

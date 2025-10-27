@@ -78,7 +78,7 @@ export default function Sidebar({ user, isCollapsed, onToggleCollapse }) {
                     </h1>
                 )}
                 <button
-                    onClick={() => onToggleCollapse(!isCollapsed)}
+                    onClick={onToggleCollapse}
                     className="p-1 rounded-md hover:bg-indigo-100 text-indigo-50 transition"
                 >
                     <Bars3Icon className="h-5 w-5" />

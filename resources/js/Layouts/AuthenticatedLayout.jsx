@@ -49,7 +49,7 @@ export default function AuthenticatedLayout({ children }) {
             <Sidebar 
                 user={auth.user} 
                 isCollapsed={isSidebarCollapsed}
-                onToggleCollapse={setIsSidebarCollapsed}
+                onToggleCollapse={() => setIsSidebarCollapsed(prev => !prev)}
             />
             <Header user={auth.user} />
 

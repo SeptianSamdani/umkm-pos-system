@@ -23,6 +23,7 @@ export default function POSIndex({ products, categories, customers }) {
     const [paymentMethod, setPaymentMethod] = useState('cash');
     const [discount, setDiscount] = useState(0);
     const [processing, setProcessing] = useState(false);
+    const [isLoading, setIsLoading] = useState(false);
 
     // Memoize products array
     const allProducts = useMemo(() => {
@@ -37,6 +38,7 @@ export default function POSIndex({ products, categories, customers }) {
 
     // Filter products dengan debounce
     useEffect(() => {
+        setIsLoading(true); 
         const timeoutId = setTimeout(() => {
             let result = [...allProducts];
 
@@ -54,6 +56,7 @@ export default function POSIndex({ products, categories, customers }) {
             }
 
             setFilteredProducts(result);
+            setIsLoading(false); 
         }, 300);
 
         return () => clearTimeout(timeoutId);

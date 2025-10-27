@@ -1,20 +1,19 @@
-// resources/js/Pages/Products/Edit.jsx
 import { useState } from 'react';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
 import Card from '@/Components/Card';
 import Button from '@/Components/Button';
 import Input from '@/Components/Input';
 import Select from '@/Components/Select';
-import { Head, Link, useForm } from '@inertiajs/react';
-import { ArrowLeftIcon, PhotoIcon } from '@heroicons/react/24/outline';
+import Textarea from '@/Components/Textarea';
+import { Head, Link, router } from '@inertiajs/react';
+import { 
+    ArrowLeftIcon,
+    PhotoIcon,
+    TrashIcon
+} from '@heroicons/react/24/outline';
 
-export default function ProductEdit({ product, categories, suppliers }) {
-    const [previewImage, setPreviewImage] = useState(
-        product.image ? `/storage/${product.image}` : null
-    );
-
-    const { data, setData, post, processing, errors } = useForm({
-        _method: 'PUT',
+export default function ProductsEdit({ product, categories, suppliers }) {
+    const [form, setForm] = useState({
         category_id: product.category_id || '',
         supplier_id: product.supplier_id || '',
         name: product.name || '',
@@ -23,249 +22,355 @@ export default function ProductEdit({ product, categories, suppliers }) {
         cost: product.cost || '',
         price: product.price || '',
         stock: product.stock || '',
-        unit: product.unit || 'pcs',
-        min_stock: product.min_stock || '5',
+        unit: product.unit || '',
+        min_stock: product.min_stock || '',
         description: product.description || '',
         image: null,
         is_active: product.is_active ?? true,
     });
 
-    const handleImageChange = (e) => {
-        const file = e.target.files[0];
-        if (file) {
-            setData('image', file);
-            const reader = new FileReader();
-            reader.onloadend = () => {
-                setPreviewImage(reader.result);
-            };
-            reader.readAsDataURL(file);
+    const [imagePreview, setImagePreview] = useState(product.image ? `/storage/${product.image}` : null);
+    const [errors, setErrors] = useState({});
+    const [showDeleteImage, setShowDeleteImage] = useState(false);
+
+    const handleChange = (e) => {
+        const { name, value, type, checked, files } = e.target;
+        
+        if (type === 'file') {
+            const file = files[0];
+            setForm(prev => ({ ...prev, [name]: file }));
+            
+            // Create preview
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (e) => setImagePreview(e.target.result);
+                reader.readAsDataURL(file);
+                setShowDeleteImage(false);
+            } else {
+                setImagePreview(product.image ? `/storage/${product.image}` : null);
+            }
+        } else if (type === 'checkbox') {
+            setForm(prev => ({ ...prev, [name]: checked }));
+        } else {
+            setForm(prev => ({ ...prev, [name]: value }));
+        }
+        
+        // Clear error when user starts typing
+        if (errors[name]) {
+            setErrors(prev => ({ ...prev, [name]: '' }));
         }
     };
 
     const handleSubmit = (e) => {
         e.preventDefault();
-        post(route('products.update', product.id), {
-            forceFormData: true,
+        
+        const formData = new FormData();
+        Object.keys(form).forEach(key => {
+            if (form[key] !== null && form[key] !== '') {
+                formData.append(key, form[key]);
+            }
+        });
+
+        // Add _method for PUT request
+        formData.append('_method', 'PUT');
+
+        router.post(route('products.update', product.id), formData, {
+            preserveScroll: true,
+            onError: (err) => setErrors(err),
+            onFinish: () => setForm(prev => ({ ...prev, image: null })),
         });
     };
+
+    const handleRemoveImage = () => {
+        setForm(prev => ({ ...prev, image: 'REMOVE' }));
+        setImagePreview(null);
+        setShowDeleteImage(true);
+    };
+
+    const units = [
+        'pcs', 'unit', 'box', 'pack', 'kg', 'gram', 'liter', 'ml', 'meter', 'cm'
+    ];
 
     return (
         <AuthenticatedLayout>
             <Head title={`Edit ${product.name}`} />
-             <div className="space-y-6">
-                <div className="flex items-center gap-4">
-                    <Link href={route('products.index')}>
-                        <button className="rounded-lg p-2 hover:bg-gray-100">
-                            <ArrowLeftIcon className="h-5 w-5" />
-                        </button>
-                    </Link>
-                    <div>
-                        <h1 className="text-2xl font-bold text-gray-900">Create Product</h1>
-                        <p className="mt-1 text-sm text-gray-600">Add a new product</p>
+
+            <div className="space-y-6">
+                {/* Header */}
+                <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                        <Link href={route('products.index')}>
+                            <Button variant="secondary" className="flex items-center gap-2">
+                                <ArrowLeftIcon className="h-5 w-5" />
+                                Back
+                            </Button>
+                        </Link>
+                        <div>
+                            <h1 className="text-2xl font-bold text-gray-900">Edit Product</h1>
+                            <p className="mt-1 text-sm text-gray-600">
+                                Update product information
+                            </p>
+                        </div>
                     </div>
                 </div>
 
                 <form onSubmit={handleSubmit}>
                     <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-                        {/* Left Column - Image */}
-                        <Card className="lg:col-span-1">
-                            <h3 className="mb-4 font-semibold text-gray-900">Product Image</h3>
-                            <div className="space-y-4">
-                                <div className="flex items-center justify-center rounded-lg border-2 border-dashed border-gray-300 p-6">
-                                    {previewImage ? (
-                                        <img
-                                            src={previewImage}
-                                            alt="Preview"
-                                            className="max-h-64 rounded-lg object-contain"
+                        {/* Left Column - Basic Info */}
+                        <div className="lg:col-span-2 space-y-6">
+                            {/* Basic Information */}
+                            <Card>
+                                <h2 className="text-lg font-medium text-gray-900 mb-4">
+                                    Basic Information
+                                </h2>
+                                <div className="space-y-4">
+                                    <div>
+                                        <Input
+                                            label="Product Name *"
+                                            name="name"
+                                            value={form.name}
+                                            onChange={handleChange}
+                                            error={errors.name}
+                                            placeholder="Enter product name"
+                                            required
                                         />
-                                    ) : (
-                                        <div className="text-center">
-                                            <PhotoIcon className="mx-auto h-12 w-12 text-gray-400" />
-                                            <p className="mt-2 text-sm text-gray-500">
-                                                No image selected
-                                            </p>
-                                        </div>
-                                    )}
-                                </div>
-                                <input
-                                    type="file"
-                                    accept="image/*"
-                                    onChange={handleImageChange}
-                                    className="block w-full text-sm text-gray-500 file:mr-4 file:rounded-lg file:border-0 file:bg-indigo-50 file:px-4 file:py-2 file:text-sm file:font-medium file:text-indigo-700 hover:file:bg-indigo-100"
-                                />
-                                {errors.image && (
-                                    <p className="text-sm text-red-600">{errors.image}</p>
-                                )}
-                            </div>
-                        </Card>
-
-                        {/* Right Column - Form */}
-                        <Card className="lg:col-span-2">
-                            <div className="space-y-6">
-                                {/* Basic Info */}
-                                <div>
-                                    <h3 className="mb-4 font-semibold text-gray-900">
-                                        Basic Information
-                                    </h3>
-                                    <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-                                        <div className="md:col-span-2">
-                                            <label className="block text-sm font-medium text-gray-700">
-                                                Product Name <span className="text-red-500">*</span>
-                                            </label>
-                                            <div className="mb-3">
-                                                <Input
-                                                    type="text"
-                                                    value={data.name}
-                                                    onChange={(e) => setData('name', e.target.value)}
-                                                    error={errors.name}
-                                                    className="mt-1"
-                                                />
-                                            </div>
-                                            <label className="block text-sm font-medium text-gray-700">
-                                                Supplier Name <span className="text-red-500">*</span>
-                                            </label>
-                                            <div className="mt-2">
-                                                <Select
-                                                    value={data.supplier_id}
-                                                    onChange={(e) => setData('supplier_id', e.target.value)}
-                                                    error={errors.supplier_id}
-                                                    className="mt-1"
-                                                >
-                                                    <option value="">Select Supplier</option>
-                                                    {suppliers.map((supplier) => (
-                                                        <option key={supplier.id} value={supplier.id}>
-                                                            {supplier.name}
-                                                        </option>
-                                                    ))}
-                                                </Select>
-                                            </div>
-                                        </div>
                                     </div>
-                                </div>
 
-                                {/* Pricing & Stock */}
-                                <div>
-                                    <h3 className="mb-4 font-semibold text-gray-900">
-                                        Pricing & Inventory
-                                    </h3>
-                                    <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-                                        <div>
-                                            <label className="block text-sm font-medium text-gray-700">
-                                                Cost Price <span className="text-red-500">*</span>
-                                            </label>
-                                            <Input
-                                                type="number"
-                                                value={data.cost}
-                                                onChange={(e) => setData('cost', e.target.value)}
-                                                error={errors.cost}
-                                                className="mt-1"
-                                            />
-                                        </div>
-
-                                        <div>
-                                            <label className="block text-sm font-medium text-gray-700">
-                                                Selling Price <span className="text-red-500">*</span>
-                                            </label>
-                                            <Input
-                                                type="number"
-                                                value={data.price}
-                                                onChange={(e) => setData('price', e.target.value)}
-                                                error={errors.price}
-                                                className="mt-1"
-                                            />
-                                        </div>
-
-                                        <div>
-                                            <label className="block text-sm font-medium text-gray-700">
-                                                Stock <span className="text-red-500">*</span>
-                                            </label>
-                                            <Input
-                                                type="number"
-                                                value={data.stock}
-                                                onChange={(e) => setData('stock', e.target.value)}
-                                                error={errors.stock}
-                                                className="mt-1"
-                                            />
-                                        </div>
-
-                                        <div>
-                                            <label className="block text-sm font-medium text-gray-700">
-                                                Unit <span className="text-red-500">*</span>
-                                            </label>
-                                            <Select
-                                                value={data.unit}
-                                                onChange={(e) => setData('unit', e.target.value)}
-                                                error={errors.unit}
-                                                className="mt-1"
-                                            >
-                                                <option value="pcs">Pieces (pcs)</option>
-                                                <option value="kg">Kilogram (kg)</option>
-                                                <option value="liter">Liter (liter)</option>
-                                                <option value="box">Box</option>
-                                                <option value="pack">Pack</option>
-                                            </Select>
-                                        </div>
-
-                                        <div className="md:col-span-2">
-                                            <label className="block text-sm font-medium text-gray-700">
-                                                Minimum Stock <span className="text-red-500">*</span>
-                                            </label>
-                                            <Input
-                                                type="number"
-                                                value={data.min_stock}
-                                                onChange={(e) =>
-                                                    setData('min_stock', e.target.value)
-                                                }
-                                                error={errors.min_stock}
-                                                className="mt-1"
-                                            />
-                                        </div>
+                                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                                        <Input
+                                            label="SKU *"
+                                            name="sku"
+                                            value={form.sku}
+                                            onChange={handleChange}
+                                            error={errors.sku}
+                                            placeholder="Product SKU"
+                                            required
+                                        />
+                                        <Input
+                                            label="Barcode"
+                                            name="barcode"
+                                            value={form.barcode}
+                                            onChange={handleChange}
+                                            error={errors.barcode}
+                                            placeholder="Optional barcode"
+                                        />
                                     </div>
-                                </div>
 
-                                {/* Description */}
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700">
-                                        Description
-                                    </label>
-                                    <textarea
-                                        value={data.description}
-                                        onChange={(e) => setData('description', e.target.value)}
-                                        rows={3}
-                                        className="mt-1 w-full rounded-lg border border-gray-300 px-4 py-2 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                                        <Select
+                                            label="Category"
+                                            name="category_id"
+                                            value={form.category_id}
+                                            onChange={handleChange}
+                                            error={errors.category_id}
+                                        >
+                                            <option value="">Select Category</option>
+                                            {categories.map((category) => (
+                                                <option key={category.id} value={category.id}>
+                                                    {category.name}
+                                                </option>
+                                            ))}
+                                        </Select>
+                                        <Select
+                                            label="Supplier"
+                                            name="supplier_id"
+                                            value={form.supplier_id}
+                                            onChange={handleChange}
+                                            error={errors.supplier_id}
+                                        >
+                                            <option value="">Select Supplier</option>
+                                            {suppliers.map((supplier) => (
+                                                <option key={supplier.id} value={supplier.id}>
+                                                    {supplier.name}
+                                                </option>
+                                            ))}
+                                        </Select>
+                                    </div>
+
+                                    <Textarea
+                                        label="Description"
+                                        name="description"
+                                        value={form.description}
+                                        onChange={handleChange}
+                                        error={errors.description}
+                                        placeholder="Product description..."
+                                        rows={4}
                                     />
                                 </div>
+                            </Card>
 
-                                {/* Status */}
-                                <div>
-                                    <label className="flex items-center gap-2">
+                            {/* Pricing & Stock */}
+                            <Card>
+                                <h2 className="text-lg font-medium text-gray-900 mb-4">
+                                    Pricing & Stock
+                                </h2>
+                                <div className="space-y-4">
+                                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                                        <Input
+                                            label="Cost Price *"
+                                            name="cost"
+                                            type="number"
+                                            value={form.cost}
+                                            onChange={handleChange}
+                                            error={errors.cost}
+                                            placeholder="0"
+                                            min="0"
+                                            step="0.01"
+                                            required
+                                        />
+                                        <Input
+                                            label="Selling Price *"
+                                            name="price"
+                                            type="number"
+                                            value={form.price}
+                                            onChange={handleChange}
+                                            error={errors.price}
+                                            placeholder="0"
+                                            min="0"
+                                            step="0.01"
+                                            required
+                                        />
+                                    </div>
+
+                                    <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                                        <Input
+                                            label="Current Stock *"
+                                            name="stock"
+                                            type="number"
+                                            value={form.stock}
+                                            onChange={handleChange}
+                                            error={errors.stock}
+                                            placeholder="0"
+                                            min="0"
+                                            required
+                                        />
+                                        <Input
+                                            label="Minimum Stock *"
+                                            name="min_stock"
+                                            type="number"
+                                            value={form.min_stock}
+                                            onChange={handleChange}
+                                            error={errors.min_stock}
+                                            placeholder="0"
+                                            min="0"
+                                            required
+                                        />
+                                        <Select
+                                            label="Unit *"
+                                            name="unit"
+                                            value={form.unit}
+                                            onChange={handleChange}
+                                            error={errors.unit}
+                                            required
+                                        >
+                                            <option value="">Select Unit</option>
+                                            {units.map((unit) => (
+                                                <option key={unit} value={unit}>
+                                                    {unit}
+                                                </option>
+                                            ))}
+                                        </Select>
+                                    </div>
+                                </div>
+                            </Card>
+                        </div>
+
+                        {/* Right Column - Image & Status */}
+                        <div className="space-y-6">
+                            {/* Image Upload */}
+                            <Card>
+                                <h2 className="text-lg font-medium text-gray-900 mb-4">
+                                    Product Image
+                                </h2>
+                                <div className="space-y-4">
+                                    <div className="flex justify-center">
+                                        <div className="relative">
+                                            {imagePreview ? (
+                                                <div className="relative">
+                                                    <img
+                                                        src={imagePreview}
+                                                        alt="Preview"
+                                                        className="h-48 w-48 rounded-lg object-cover border-2 border-gray-300"
+                                                    />
+                                                    {!showDeleteImage && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={handleRemoveImage}
+                                                            className="absolute -top-2 -right-2 bg-red-500 text-white p-1 rounded-full hover:bg-red-600"
+                                                        >
+                                                            <TrashIcon className="h-4 w-4" />
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            ) : (
+                                                <div className="h-48 w-48 rounded-lg border-2 border-dashed border-gray-300 flex flex-col items-center justify-center">
+                                                    <PhotoIcon className="h-12 w-12 text-gray-400" />
+                                                    <span className="mt-2 text-sm text-gray-500">
+                                                        No image
+                                                    </span>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                    
+                                    <div>
+                                        <Input
+                                            type="file"
+                                            name="image"
+                                            onChange={handleChange}
+                                            error={errors.image}
+                                            accept="image/*"
+                                        />
+                                        <p className="mt-1 text-xs text-gray-500">
+                                            JPG, PNG, WebP. Max 2MB
+                                        </p>
+                                        {showDeleteImage && (
+                                            <p className="mt-1 text-xs text-yellow-600">
+                                                Current image will be removed on save
+                                            </p>
+                                        )}
+                                    </div>
+                                </div>
+                            </Card>
+
+                            {/* Status */}
+                            <Card>
+                                <h2 className="text-lg font-medium text-gray-900 mb-4">
+                                    Status
+                                </h2>
+                                <div className="space-y-4">
+                                    <div className="flex items-center">
                                         <input
                                             type="checkbox"
-                                            checked={data.is_active}
-                                            onChange={(e) =>
-                                                setData('is_active', e.target.checked)
-                                            }
-                                            className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                                            name="is_active"
+                                            checked={form.is_active}
+                                            onChange={handleChange}
+                                            className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
                                         />
-                                        <span className="text-sm font-medium text-gray-700">
-                                            Active
-                                        </span>
-                                    </label>
+                                        <label htmlFor="is_active" className="ml-2 text-sm text-gray-900">
+                                            Product is active
+                                        </label>
+                                    </div>
+                                    <p className="text-xs text-gray-500">
+                                        Inactive products won't appear in sales and purchases
+                                    </p>
                                 </div>
+                            </Card>
 
-                                {/* Actions */}
-                                <div className="flex justify-end gap-3 border-t pt-6">
+                            {/* Actions */}
+                            <Card>
+                                <div className="flex flex-col gap-3">
+                                    <Button type="submit" className="w-full">
+                                        Update Product
+                                    </Button>
                                     <Link href={route('products.index')}>
-                                        <Button variant="secondary" type="button">
+                                        <Button variant="secondary" className="w-full">
                                             Cancel
                                         </Button>
                                     </Link>
-                                    <Button type="submit" disabled={processing}>
-                                        {processing ? 'Updating...' : 'Update Product'}
-                                    </Button>
                                 </div>
-                            </div>
-                        </Card>
+                            </Card>
+                        </div>
                     </div>
                 </form>
             </div>
